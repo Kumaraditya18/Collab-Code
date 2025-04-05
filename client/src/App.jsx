@@ -5,7 +5,7 @@ import Editor from './components/Editor';
 import JoinRoom from './components/JoinRoom';
 import Chat from './components/Chat';
 
-const socket = io('http://localhost:3001', { autoConnect: false });
+const socket = io('https://collab-code-81ih.onrender.com', { autoConnect: false });
 
 function App() {
   const [room, setRoom] = useState('');
@@ -73,7 +73,7 @@ function App() {
 
   const runCode = async (code) => {
     try {
-      const res = await fetch('http://localhost:3001/run', {
+      const res = await fetch('https://collab-code-81ih.onrender.com/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, language }),
