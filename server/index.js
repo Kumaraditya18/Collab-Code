@@ -5,9 +5,14 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
+// ✅ Update CORS to allow both GitHub Pages and localhost
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: [
+      'https://kumaraditya18.github.io', // your deployed frontend
+      'http://localhost:5173' // local dev
+    ],
     methods: ['GET', 'POST'],
   },
 });
@@ -27,7 +32,6 @@ const fetch = (...args) =>
 app.post('/run', async (req, res) => {
   const { code, language } = req.body;
 
-  // You can add more mappings as needed
   const languageVersions = {
     javascript: '18.15.0',
     python: '3.10.0',
@@ -56,6 +60,7 @@ app.post('/run', async (req, res) => {
     });
 
     const data = await response.json();
+    console.log(data); // For debugging
     res.send({ output: data.run?.output || '✅ Executed but no output' });
   } catch (err) {
     console.error('Execution error:', err);
@@ -63,7 +68,7 @@ app.post('/run', async (req, res) => {
   }
 });
 
-
+// 💬 Socket.IO code collaboration
 const roomCodeStore = {};
 const roomChatStore = {};
 
