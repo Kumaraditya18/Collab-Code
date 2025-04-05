@@ -5,9 +5,11 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
+// ✅ Updated CORS for local + production (Vercel)
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'https://collab-code-lemon.vercel.app'],
     methods: ['GET', 'POST'],
   },
 });
@@ -23,11 +25,10 @@ app.get('/', (req, res) => {
 const fetch = (...args) =>
   import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-// 💻 Code execution endpoint
+// 💻 Code execution endpoint (using Piston API)
 app.post('/run', async (req, res) => {
   const { code, language } = req.body;
 
-  // You can add more mappings as needed
   const languageVersions = {
     javascript: '18.15.0',
     python: '3.10.0',
@@ -63,34 +64,47 @@ app.post('/run', async (req, res) => {
   }
 });
 
-
+// 🧠 In-memory storage for code and chat per room
 const roomCodeStore = {};
 const roomChatStore = {};
 
 io.on('connection', (socket) => {
   console.log('⚡ Client connected:', socket.id);
 
+  // 🧩 Join a room and re-sync code + chat
   socket.on('join-room', (roomId) => {
     socket.join(roomId);
     console.log(`🛏️ ${socket.id} joined room: ${roomId}`);
 
+    // Send existing code (if any)
     if (roomCodeStore[roomId]) {
       socket.emit('init-code', roomCodeStore[roomId]);
     }
+
+    // Send existing chat history (if any)
     if (roomChatStore[roomId]) {
       socket.emit('init-chat', roomChatStore[roomId]);
     }
   });
 
+  // 🔁 Code change broadcast
   socket.on('code-change', ({ room, code }) => {
     roomCodeStore[room] = code;
     socket.to(room).emit('code-change', code);
   });
 
-  socket.on('chat-message', ({ room, message }) => {
+  // 💬 Chat message handler with timestamp + sender
+  socket.on('chat-message', ({ room, message, sender }) => {
     if (!roomChatStore[room]) roomChatStore[room] = [];
-    roomChatStore[room].push(message);
-    socket.to(room).emit('chat-message', message);
+
+    const msgData = {
+      text: message,
+      sender: sender || 'Anonymous',
+      timestamp: Date.now(),
+    };
+
+    roomChatStore[room].push(msgData);
+    socket.to(room).emit('chat-message', msgData);
   });
 
   socket.on('disconnect', () => {
