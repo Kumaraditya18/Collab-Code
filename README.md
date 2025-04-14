@@ -23,7 +23,6 @@
 **Frontend:**
 - React.js
 - Tailwind CSS
-- CodeMirror
 
 **Backend:**
 - Express.js
