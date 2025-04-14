@@ -1,8 +1,3 @@
-Here’s a polished `README.md` for your **Collab-Code** project that you can use on your GitHub repo:
-
----
-
-```markdown
 # 🧑‍💻 Collab-Code
 
 **Collab-Code** is a real-time collaborative code editor built using **React**, **Express.js**, **Socket.io**, and **CodeMirror**. It enables multiple users to write and edit code together in real-time, with live chat, multiple room support, and a smooth, responsive UI.
