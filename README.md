@@ -7,7 +7,6 @@
 - 🔄 **Real-Time Code Sharing** – Collaborate live using WebSockets (Socket.io).
 - 💬 **In-Room Chat** – Communicate seamlessly with other users in the same room.
 - 🛏️ **Multiple Rooms** – Isolated editing sessions for different groups.
-- 🧠 **CodeMirror Integration** – Smooth syntax highlighting and editing experience.
 - 🎨 **Responsive UI** – Built with Tailwind CSS for a modern and responsive design.
 - 🔗 **Unique Room URLs** – Shareable links to invite collaborators instantly.
 
