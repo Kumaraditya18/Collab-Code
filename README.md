@@ -1,22 +1,21 @@
 # 🧑‍💻 Collab-Code
 
-**Collab-Code** is a real-time collaborative code editor built using **React**, **Express.js**, **Socket.io**, and **CodeMirror**. It enables multiple users to write and edit code together in real-time, with live chat, multiple room support, and a smooth, responsive UI.
+**Collab-Code** is a real-time collaborative code editor built using **React**, **Express.js**, **Socket.io**, and **CodeMirror**. It allows multiple users to write and edit code together in real-time with live chat, room-based collaboration, and a clean UI.
 
 ### 🚀 Features
 
-- 🔄 **Real-Time Collaboration** – Code with your peers simultaneously using WebSockets (Socket.io).
-- 💬 **Live Chat** – Stay connected with team members via room-specific chat.
-- 🛏️ **Multiple Rooms** – Create or join separate rooms for isolated collaboration.
-- 🧠 **Smart Editor** – Powered by CodeMirror for syntax highlighting and seamless editing.
-- 🎨 **Responsive Design** – Fully responsive UI with Tailwind CSS.
-- 🔐 **Unique Room URLs** – Shareable links for quick room access.
+- 🔄 **Real-Time Code Sharing** – Collaborate live using WebSockets (Socket.io).
+- 💬 **In-Room Chat** – Communicate seamlessly with other users in the same room.
+- 🛏️ **Multiple Rooms** – Isolated editing sessions for different groups.
+- 🧠 **CodeMirror Integration** – Smooth syntax highlighting and editing experience.
+- 🎨 **Responsive UI** – Built with Tailwind CSS for a modern and responsive design.
+- 🔗 **Unique Room URLs** – Shareable links to invite collaborators instantly.
 
 ---
 
-### 🖼️ Demo
+### 🌐 Live Demo
 
-👉 [Live App](https://collab-code.vercel.app)  
-📹 Coming Soon: A walkthrough video!
+👉 [Try Collab-Code Live](https://collab-code-lemon.vercel.app/)
 
 ---
 
@@ -33,9 +32,9 @@
 
 ---
 
-### 📦 Installation
+### 📦 Getting Started
 
-#### 1. Clone the repository
+#### 1. Clone the repo
 
 ```bash
 git clone https://github.com/Kumaraditya18/Collab-Code.git
@@ -58,29 +57,29 @@ cd server
 npm install
 ```
 
-#### 3. Run the app
+#### 3. Run the app locally
 
 In separate terminals:
 
-- **Start the frontend**
+- **Frontend**
 
 ```bash
 cd client
 npm start
 ```
 
-- **Start the backend**
+- **Backend**
 
 ```bash
 cd server
 npm run start
 ```
 
-Open your browser at `http://localhost:3000`
+Visit `http://localhost:3000` in your browser.
 
 ---
 
-### 📂 Project Structure
+### 📁 Folder Structure
 
 ```
 Collab-Code/
@@ -99,19 +98,19 @@ Collab-Code/
 
 ---
 
-### 🎯 Upcoming Features
+### 🔮 Upcoming Enhancements
 
-- 📝 Code Execution (for selected languages)
-- 📜 Version History & Undo
-- 👥 Authentication (Login/Signup)
-- 🌐 Language selection
-- 📁 File structure support
+- 💻 Code execution in multiple languages
+- 🗃️ File structure + tabs
+- 🔒 Authentication and private rooms
+- ⏪ Undo/Redo with version history
+- 🌐 Language/theme selection
 
 ---
 
 ### 🤝 Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request. Let's build a better collab platform together 💪
+Pull requests are welcome! Feel free to fork the repo and submit improvements or bug fixes.
 
 ---
 
@@ -123,8 +122,9 @@ This project is licensed under the [MIT License](LICENSE).
 
 ### 👤 Author
 
-Made with ❤️ by [Kumar Aditya](https://github.com/Kumaraditya18)
-
+Made with 💻 and ❤️ by [Kumar Aditya](https://github.com/Kumaraditya18)
 ```
 
 ---
+
+Let me know if you'd like badges, images, or a walkthrough gif/video added too!
