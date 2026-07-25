@@ -395,8 +395,8 @@ app.post('/run', async (req, res) => {
   }
 });
 
-// Fallback route for SPA client routes
-app.get('*', (req, res, next) => {
+// Universal SPA Static Fallback Middleware (Express 4 & Express 5 safe)
+app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path === '/run' || req.path === '/health') {
     return res.status(404).json({ error: `Endpoint ${req.path} not found.` });
   }
