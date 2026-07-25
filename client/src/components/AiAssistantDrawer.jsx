@@ -15,10 +15,30 @@ const AiAssistantDrawer = ({
   const [aiResponse, setAiResponse] = useState('');
   const [codeFix, setCodeFix] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [autoApply, setAutoApply] = useState(true); // Auto-apply code changes to editor
+  const [autoApply, setAutoApply] = useState(true);
   const [appliedStatus, setAppliedStatus] = useState('');
 
   if (!isOpen) return null;
+
+  const detectLanguageFromCode = (codeStr, fallbackLang) => {
+    if (!codeStr) return fallbackLang;
+    if (codeStr.includes('#include') || codeStr.includes('std::cout') || codeStr.includes('using namespace std')) {
+      return 'cpp';
+    }
+    if (codeStr.includes('def ') || (codeStr.includes('print(') && !codeStr.includes('console.log'))) {
+      return 'python';
+    }
+    if (codeStr.includes('public class Main') || codeStr.includes('System.out.println')) {
+      return 'java';
+    }
+    if (codeStr.includes('fn main()') || codeStr.includes('println!')) {
+      return 'rust';
+    }
+    if (codeStr.includes('package main') || codeStr.includes('fmt.Println')) {
+      return 'go';
+    }
+    return fallbackLang;
+  };
 
   const handleRequestAi = async (actionType, overridePrompt = '') => {
     setActiveTab(actionType);
@@ -52,9 +72,10 @@ const AiAssistantDrawer = ({
 
       if (data.codeFix) {
         setCodeFix(data.codeFix);
+        const detectedLang = detectLanguageFromCode(data.codeFix, language);
         if (autoApply) {
-          onApplyFix(data.codeFix);
-          setAppliedStatus('Code automatically applied to your workspace editor!');
+          onApplyFix(data.codeFix, detectedLang);
+          setAppliedStatus(`Code automatically applied to editor (${detectedLang.toUpperCase()})!`);
         }
       }
     } catch (err) {
@@ -74,8 +95,9 @@ const AiAssistantDrawer = ({
 
   const handleManualApply = () => {
     if (codeFix) {
-      onApplyFix(codeFix);
-      setAppliedStatus('Code applied to your workspace editor!');
+      const detectedLang = detectLanguageFromCode(codeFix, language);
+      onApplyFix(codeFix, detectedLang);
+      setAppliedStatus(`Code applied to editor (${detectedLang.toUpperCase()})!`);
     }
   };
 
@@ -202,7 +224,7 @@ const AiAssistantDrawer = ({
           </div>
         ) : (
           <div className="text-center py-12 text-slate-500 text-xs">
-            Ask AI to generate code, convert languages, or fix bugs. Changes will automatically apply to your workspace editor when enabled.
+            Ask AI to generate code, convert languages (C++, Python, Java), or fix bugs.
           </div>
         )}
       </div>

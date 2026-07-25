@@ -346,10 +346,16 @@ function App() {
     }
   };
 
-  const handleApplyAiFix = (fixedCode) => {
+  const handleApplyAiFix = (fixedCode, targetLanguage) => {
     if (!fixedCode) return;
     handleCodeChange(fixedCode);
-    setIsAiOpen(false);
+
+    if (targetLanguage) {
+      setLanguage(targetLanguage);
+      setFiles((prev) =>
+        prev.map((f) => (f.id === activeFileId ? { ...f, language: targetLanguage } : f))
+      );
+    }
   };
 
   const handleAskAiToDebug = (output) => {
@@ -430,7 +436,12 @@ function App() {
                 handleChange={handleCodeChange}
                 onRun={runCode}
                 language={language}
-                setLanguage={setLanguage}
+                setLanguage={(newLang) => {
+                  setLanguage(newLang);
+                  setFiles((prev) =>
+                    prev.map((f) => (f.id === activeFileId ? { ...f, language: newLang } : f))
+                  );
+                }}
                 files={files}
                 activeFileId={activeFileId}
                 onSelectFile={handleSelectFile}
