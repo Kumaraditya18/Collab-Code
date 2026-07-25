@@ -1,5 +1,7 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -36,6 +38,12 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Serve static compiled client app
+const clientDistPath = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+}
+
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -61,10 +69,6 @@ const authenticateToken = (req, res, next) => {
 // Health Check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.get('/', (req, res) => {
-  res.send('CollabCode Advanced Server is running');
 });
 
 // AUTH ENDPOINTS
@@ -210,10 +214,23 @@ app.post('/run', async (req, res) => {
   }
 });
 
+// Fallback route for SPA client routes
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path === '/run' || req.path === '/health') {
+    return next();
+  }
+  const indexPath = path.join(clientDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.send('CollabCode Advanced Server is running');
+  }
+});
+
 // IN-MEMORY MULTI-FILE AND ROOM STORE
 const roomCodeStore = {};
-const roomFilesStore = {}; // roomId -> Array of { id, name, content, language }
-const roomActiveFileStore = {}; // roomId -> fileId
+const roomFilesStore = {};
+const roomActiveFileStore = {};
 const roomChatStore = {};
 const roomUsersStore = {};
 
@@ -245,13 +262,11 @@ io.on('connection', (socket) => {
     roomUsersStore[roomId] = roomUsersStore[roomId].filter((u) => u.socketId !== socket.id);
     roomUsersStore[roomId].push({ socketId: socket.id, userName: currentUserName });
 
-    // Initialize room files if empty
     if (!roomFilesStore[roomId] || roomFilesStore[roomId].length === 0) {
       roomFilesStore[roomId] = JSON.parse(JSON.stringify(DEFAULT_FILES));
       roomActiveFileStore[roomId] = DEFAULT_FILES[0].id;
     }
 
-    // Send initial room files and state to joining client
     socket.emit('init-files', {
       files: roomFilesStore[roomId],
       activeFileId: roomActiveFileStore[roomId],
@@ -276,7 +291,6 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('chat-message', systemMsg);
   });
 
-  // Multi-file sync events
   socket.on('file-create', ({ room, file }) => {
     if (!room || !file) return;
     if (!roomFilesStore[room]) roomFilesStore[room] = [];
@@ -340,7 +354,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // WebRTC Signal Relay for Video/Audio Calls
   socket.on('webrtc-signal', ({ room, signal, targetSocketId }) => {
     if (targetSocketId) {
       io.to(targetSocketId).emit('webrtc-signal', {
