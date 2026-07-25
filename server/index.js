@@ -89,23 +89,105 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// GET AVAILABLE PUBLIC ROOMS
+// ROOM STORES & DEFAULT PUBLIC ROOMS
+const roomCodeStore = {};
+const roomFilesStore = {};
+const roomActiveFileStore = {};
+const roomChatStore = {};
+const roomUsersStore = {};
+const roomTypeStore = {
+  'public-js-playground': 'public',
+  'public-python-sandbox': 'public',
+  'public-cpp-arena': 'public',
+};
+
+const DEFAULT_FILES = [
+  {
+    id: 'file_main',
+    name: 'main.js',
+    content: '// Welcome to CollabCode Workspace\nconsole.log("Hello, Collaborative Coding World!");\n\nfunction calculateSum(a, b) {\n  return a + b;\n}\n\nconsole.log("Sum calculation:", calculateSum(12, 34));\n',
+    language: 'javascript',
+  },
+];
+
+// Pre-initialize default public rooms
+const DEFAULT_PUBLIC_ROOM_DEFS = [
+  { roomId: 'public-js-playground', activeLanguage: 'javascript', description: 'Public JavaScript Playground' },
+  { roomId: 'public-python-sandbox', activeLanguage: 'python', description: 'Public Python 3 Sandbox' },
+  { roomId: 'public-cpp-arena', activeLanguage: 'cpp', description: 'Public C++ Arena' },
+];
+
+DEFAULT_PUBLIC_ROOM_DEFS.forEach((r) => {
+  if (!roomFilesStore[r.roomId]) {
+    roomFilesStore[r.roomId] = [
+      {
+        id: 'file_main',
+        name: r.activeLanguage === 'python' ? 'main.py' : r.activeLanguage === 'cpp' ? 'main.cpp' : 'main.js',
+        content: r.activeLanguage === 'python'
+          ? '# Public Python Sandbox\nprint("Hello from Public Python Sandbox!")\n'
+          : r.activeLanguage === 'cpp'
+          ? '// Public C++ Arena\n#include <iostream>\nint main() {\n  std::cout << "Hello C++!" << std::endl;\n  return 0;\n}\n'
+          : '// Public JS Playground\nconsole.log("Hello Public JS!");\n',
+        language: r.activeLanguage,
+      },
+    ];
+    roomActiveFileStore[r.roomId] = 'file_main';
+  }
+});
+
+// GET AVAILABLE ROOMS (Public rooms accessible to all, Private rooms listed if active)
 app.get('/api/rooms', (req, res) => {
-  const activeRooms = Object.keys(roomUsersStore)
-    .filter((roomId) => roomUsersStore[roomId] && roomUsersStore[roomId].length > 0)
-    .map((roomId) => {
-      const users = roomUsersStore[roomId] || [];
-      const files = roomFilesStore[roomId] || [];
-      return {
+  const roomsList = [];
+
+  // Include pre-configured and active public rooms
+  const allKnownRoomIds = Array.from(new Set([
+    ...DEFAULT_PUBLIC_ROOM_DEFS.map((d) => d.roomId),
+    ...Object.keys(roomUsersStore),
+    ...Object.keys(roomTypeStore),
+  ]));
+
+  allKnownRoomIds.forEach((roomId) => {
+    const type = roomTypeStore[roomId] || (roomId.startsWith('public-') ? 'public' : 'public');
+    const users = roomUsersStore[roomId] || [];
+    const files = roomFilesStore[roomId] || [];
+    const lang = files[0]?.language || 'javascript';
+
+    // Only return public rooms or active rooms
+    if (type === 'public' || users.length > 0) {
+      roomsList.push({
         roomId,
+        type,
         userCount: users.length,
         fileCount: files.length,
-        activeLanguage: files[0]?.language || 'javascript',
+        activeLanguage: lang,
         members: users.map((u) => u.userName),
-      };
-    });
+      });
+    }
+  });
 
-  res.json({ rooms: activeRooms });
+  res.json({ rooms: roomsList });
+});
+
+// CREATE / REGISTER ROOM ENDPOINT
+app.post('/api/rooms/create', (req, res) => {
+  const { roomId, roomType } = req.body || {};
+  if (!roomId || !roomId.trim()) {
+    return res.status(400).json({ error: 'Room ID is required.' });
+  }
+
+  const cleanRoomId = roomId.trim();
+  const targetType = roomType === 'private' ? 'private' : 'public';
+
+  // If private room, enforce auth header
+  if (targetType === 'private') {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) {
+      return res.status(401).json({ error: 'Authentication required to create a Private Room.' });
+    }
+  }
+
+  roomTypeStore[cleanRoomId] = targetType;
+  res.json({ roomId: cleanRoomId, type: targetType, message: `Room created as ${targetType}` });
 });
 
 // 100% FREE OPEN-SOURCE AI MODEL CODE ENGINE
@@ -118,7 +200,6 @@ app.post('/api/ai/assistant', async (req, res) => {
 
   const lang = language || 'javascript';
 
-  // Try free open-source LLM inference endpoint first
   try {
     const fetchModule = await import('node-fetch');
     const fetchFunc = fetchModule.default || fetchModule;
@@ -160,7 +241,7 @@ app.post('/api/ai/assistant', async (req, res) => {
     console.warn('Free LLM endpoint call failed, using built-in Free AI Code Analysis Engine:', err);
   }
 
-  // Built-in 100% Free Intelligent AI Analysis & Repair Engine
+  // Built-in Intelligent AI Analysis & Repair Engine
   let aiExplanation = '';
   let codeFix = '';
 
@@ -395,7 +476,7 @@ app.post('/run', async (req, res) => {
   }
 });
 
-// Universal SPA Static Fallback Middleware (Express 4 & Express 5 safe)
+// Universal SPA Static Fallback Middleware
 app.use((req, res, next) => {
   if (req.path.startsWith('/api') || req.path === '/run' || req.path === '/health') {
     return res.status(404).json({ error: `Endpoint ${req.path} not found.` });
@@ -408,7 +489,7 @@ app.use((req, res, next) => {
   }
 });
 
-// Global Express Error Handler guaranteeing JSON responses
+// Global Express Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled server error:', err);
   res.status(err.status || 500).json({
@@ -416,31 +497,19 @@ app.use((err, req, res, next) => {
   });
 });
 
-// IN-MEMORY MULTI-FILE AND ROOM STORE
-const roomCodeStore = {};
-const roomFilesStore = {};
-const roomActiveFileStore = {};
-const roomChatStore = {};
-const roomUsersStore = {};
-
-const DEFAULT_FILES = [
-  {
-    id: 'file_main',
-    name: 'main.js',
-    content: '// Welcome to CollabCode Workspace\nconsole.log("Hello, Collaborative Coding World!");\n\nfunction calculateSum(a, b) {\n  return a + b;\n}\n\nconsole.log("Sum calculation:", calculateSum(12, 34));\n',
-    language: 'javascript',
-  },
-];
-
 io.on('connection', (socket) => {
   let currentRoom = null;
   let currentUserName = 'Anonymous';
 
-  socket.on('join-room', ({ roomId, userName }) => {
+  socket.on('join-room', ({ roomId, userName, roomType }) => {
     if (!roomId) return;
 
     currentRoom = roomId;
     currentUserName = userName && userName.trim() ? userName.trim() : 'Guest';
+
+    if (roomType) {
+      roomTypeStore[roomId] = roomType;
+    }
 
     socket.join(roomId);
 

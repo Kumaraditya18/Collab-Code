@@ -12,10 +12,12 @@ const JoinRoom = ({
   onLogout,
   serverUrl,
 }) => {
+  const [roomType, setRoomType] = useState('public'); // public | private
   const [recentRooms, setRecentRooms] = useState([]);
   const [availableRooms, setAvailableRooms] = useState([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [error, setError] = useState('');
+  const [activePreviewTab, setActivePreviewTab] = useState('editor');
 
   // Auto-sync display name when user is signed in
   useEffect(() => {
@@ -24,7 +26,7 @@ const JoinRoom = ({
     }
   }, [currentUser, setUserName]);
 
-  // Fetch active public rooms on mount
+  // Fetch active rooms on mount
   useEffect(() => {
     const fetchRooms = async () => {
       setLoadingRooms(true);
@@ -58,179 +60,327 @@ const JoinRoom = ({
   }, []);
 
   const handleGenerateRoom = () => {
-    const randomId = Math.random().toString(36).substring(2, 8) + '-' + Math.floor(100 + Math.random() * 900);
+    const prefix = roomType === 'private' ? 'private' : 'public';
+    const randomId = `${prefix}-${Math.random().toString(36).substring(2, 8)}-${Math.floor(100 + Math.random() * 900)}`;
     setRoom(randomId);
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!currentUser) {
-      setError('Please sign in first to access collaborative workspace rooms.');
-      onOpenAuth();
+    if (!userName.trim()) {
+      setError('Please enter a display name to proceed.');
       return;
     }
 
     if (!room.trim()) {
-      setError('Please enter a room identifier to proceed.');
+      setError('Please enter a room identifier.');
       return;
     }
 
+    // If attempting to join or create a Private Room, enforce login
+    if (roomType === 'private' && !currentUser) {
+      setError('Authentication required: You must sign in to create or join Private Rooms.');
+      onOpenAuth();
+      return;
+    }
+
+    try {
+      // Register room type with backend
+      const token = localStorage.getItem('collabcode_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      await fetch(`${serverUrl}/api/rooms/create`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ roomId: room.trim(), roomType }),
+      });
+    } catch {
+      // Continue anyway
+    }
+
     setError('');
-    joinRoom();
+    joinRoom(roomType);
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4 sm:p-6 lg:p-12">
-      <div className="w-full max-w-5xl bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
+    <div className="min-h-screen w-full bg-slate-50 flex flex-col justify-between p-4 sm:p-8 lg:p-12 select-none">
+      <div className="w-full max-w-6xl mx-auto space-y-8">
 
-        {/* Left Column: Platform Features & Active Public Rooms */}
-        <div className="lg:col-span-7 p-6 sm:p-10 bg-slate-50/50 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col justify-between">
-          <div>
-            <div className="inline-block px-3 py-1 bg-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider rounded-md mb-4">
-              Real-Time Collaboration Platform
-            </div>
-
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-              CollabCode
-            </h1>
-            <p className="text-sm text-slate-600 mt-2 leading-relaxed max-w-md">
-              A robust, secure workspace for multi-language code editing, real-time sync, WebRTC video calls, and AI code assistance.
-            </p>
-
-            {/* Feature Highlights Grid */}
-            <div className="grid grid-cols-2 gap-3 mt-6">
-              <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Multi-File IDE</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">JS, Python, C++, Java, Rust with live sync</div>
-              </div>
-              <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Code Execution</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Instant compilation with stdin/stdout terminal</div>
-              </div>
-              <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Video Meetings</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Seamless video & audio conference drawer</div>
-              </div>
-              <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Free AI Assistant</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Code explanations, debugging & 1-click fixes</div>
-              </div>
-            </div>
+        {/* Navbar Header */}
+        <header className="flex items-center justify-between pb-6 border-b border-slate-200">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-black tracking-tight text-slate-900">CollabCode</span>
+            <span className="text-xs px-2.5 py-0.5 bg-slate-200 text-slate-700 font-bold uppercase tracking-wider rounded">
+              Enterprise Workspace
+            </span>
           </div>
 
-          {/* Active Public Rooms Panel */}
-          <div className="mt-8 pt-6 border-t border-slate-200">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Active Public Rooms {availableRooms.length > 0 ? `(${availableRooms.length})` : ''}
-              </span>
-              <button
-                type="button"
-                onClick={async () => {
-                  setLoadingRooms(true);
-                  try {
-                    const res = await fetch(`${serverUrl}/api/rooms`);
-                    if (res.ok) {
-                      const data = await parseResponseJson(res);
-                      if (data.rooms) setAvailableRooms(data.rooms);
-                    }
-                  } catch {
-                    // Ignore
-                  } finally {
-                    setLoadingRooms(false);
-                  }
-                }}
-                className="text-xs text-slate-500 hover:text-slate-900 underline cursor-pointer"
-              >
-                Refresh List
-              </button>
-            </div>
-
-            {loadingRooms ? (
-              <div className="text-xs text-slate-400 py-3 italic">Scanning active rooms...</div>
-            ) : availableRooms.length === 0 ? (
-              <div className="text-xs text-slate-500 py-3 italic bg-white border border-slate-200 rounded-lg px-3">
-                No active public rooms right now. Sign in and enter a room ID on the right to start.
+          <div className="flex items-center gap-3">
+            {currentUser ? (
+              <div className="flex items-center gap-3">
+                <div className="text-right hidden sm:block">
+                  <div className="text-xs font-bold text-slate-900">{currentUser.username}</div>
+                  <div className="text-[10px] text-slate-500">{currentUser.email}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="text-xs px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold rounded-md border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                >
+                  Sign Out
+                </button>
               </div>
             ) : (
-              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {availableRooms.map((r) => (
-                  <div
-                    key={r.roomId}
-                    className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg"
-                  >
-                    <div>
-                      <div className="text-xs font-mono font-bold text-slate-900">
-                        {r.roomId}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        {r.userCount} {r.userCount === 1 ? 'user' : 'users'} online • {r.activeLanguage}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRoom(r.roomId);
-                        if (currentUser) {
-                          joinRoom();
-                        } else {
-                          onOpenAuth();
-                        }
-                      }}
-                      className="text-xs px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded transition-colors cursor-pointer"
-                    >
-                      {currentUser ? 'Enter Room' : 'Sign In to Join'}
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className="text-xs px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-md shadow-xs transition-colors cursor-pointer"
+              >
+                Sign In / Register
+              </button>
             )}
           </div>
-        </div>
+        </header>
 
-        {/* Right Column: User Auth & Enter Room Portal */}
-        <div className="lg:col-span-5 p-6 sm:p-10 flex flex-col justify-between bg-white">
-          <div>
-            {/* User Account Status Card */}
-            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border ${
-                  currentUser
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-slate-200 text-slate-600 border-slate-300'
-                }`}>
-                  {currentUser ? currentUser.username.slice(0, 2).toUpperCase() : '?'}
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-900">
-                    {currentUser ? currentUser.username : 'Signed Out'}
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    {currentUser ? currentUser.email : 'Sign in to access room workspace'}
-                  </div>
-                </div>
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+          {/* Left Column: Hero & Public Rooms */}
+          <div className="lg:col-span-7 space-y-6">
+            <div>
+              <div className="inline-block px-3 py-1 bg-slate-200/80 text-slate-700 text-[11px] font-bold uppercase tracking-wider rounded-md mb-3">
+                Collaborative Code Environment
+              </div>
+              <h1 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                Public & Private <br />Coding Workspaces.
+              </h1>
+              <p className="text-sm text-slate-600 mt-3 leading-relaxed max-w-xl">
+                Join open Public Rooms for instant code sharing, or authenticate to create secure Private Rooms for enterprise pair programming.
+              </p>
+            </div>
+
+            {/* Platform Feature Suite */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Workspace Capabilities
+                </span>
+                <span className="text-[11px] text-slate-500 font-medium">Click tab to preview</span>
               </div>
 
-              <div>
-                {currentUser ? (
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="text-xs px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
-                  >
-                    Sign Out
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onOpenAuth}
-                    className="text-xs px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded shadow-xs transition-colors cursor-pointer"
-                  >
-                    Sign In / Register
-                  </button>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActivePreviewTab('editor')}
+                  className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-all cursor-pointer ${
+                    activePreviewTab === 'editor'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Multi-File IDE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePreviewTab('compiler')}
+                  className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-all cursor-pointer ${
+                    activePreviewTab === 'compiler'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Code Execution
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePreviewTab('video')}
+                  className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-all cursor-pointer ${
+                    activePreviewTab === 'video'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Video Call Drawer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActivePreviewTab('ai')}
+                  className={`py-2 px-3 text-xs font-bold rounded-md border text-center transition-all cursor-pointer ${
+                    activePreviewTab === 'ai'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  Free AI Assistant
+                </button>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg min-h-[110px]">
+                {activePreviewTab === 'editor' && (
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">Multi-File Workspace</div>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Real-time multi-file editor (`.js`, `.py`, `.cpp`, `.java`, `.ts`, `.json`) with live cursor sync, file import/export, and light mode formatting.
+                    </p>
+                  </div>
                 )}
+                {activePreviewTab === 'compiler' && (
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">Judge0 Execution Engine</div>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Instant code compilation across 8+ languages with standard input (`stdin`) and standard output (`stdout`) terminal panes.
+                    </p>
+                  </div>
+                )}
+                {activePreviewTab === 'video' && (
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">WebRTC Video & Audio Conference</div>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Built-in video call drawer that automatically authenticates members using display names without extra logins.
+                    </p>
+                  </div>
+                )}
+                {activePreviewTab === 'ai' && (
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">100% Free AI Code Support</div>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Step-by-step code explanations, automated bug diagnosis, refactoring, and 1-click **"Apply Fix to Editor"** patch generation.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Available Public Rooms Section */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Available Public Rooms {availableRooms.length > 0 ? `(${availableRooms.length})` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setLoadingRooms(true);
+                    try {
+                      const res = await fetch(`${serverUrl}/api/rooms`);
+                      if (res.ok) {
+                        const data = await parseResponseJson(res);
+                        if (data.rooms) setAvailableRooms(data.rooms);
+                      }
+                    } catch {
+                      // Ignore
+                    } finally {
+                      setLoadingRooms(false);
+                    }
+                  }}
+                  className="text-xs text-slate-500 hover:text-slate-900 underline cursor-pointer"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {loadingRooms ? (
+                <div className="text-xs text-slate-400 py-3 italic">Scanning rooms...</div>
+              ) : availableRooms.length === 0 ? (
+                <div className="text-xs text-slate-500 py-3 italic bg-slate-50 border border-slate-200 rounded-lg px-3.5">
+                  No public rooms listed. Create one on the right to start coding.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {availableRooms.map((r) => (
+                    <div
+                      key={r.roomId}
+                      className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-400 transition-all"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-bold text-slate-900">
+                            {r.roomId}
+                          </span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase border ${
+                            r.type === 'private'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                          }`}>
+                            {r.type === 'private' ? 'Private' : 'Public'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-1">
+                          {r.userCount} {r.userCount === 1 ? 'user' : 'users'} online • {r.activeLanguage}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRoom(r.roomId);
+                          setRoomType(r.type || 'public');
+                          if (r.type === 'private' && !currentUser) {
+                            setError('Private rooms require authentication. Please sign in to join.');
+                            onOpenAuth();
+                          } else {
+                            joinRoom(r.type);
+                          }
+                        }}
+                        className="text-xs px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-md shadow-2xs transition-colors cursor-pointer"
+                      >
+                        Join Room
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right Column: Room Creation & Entry Form */}
+          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-xl p-6 sm:p-8 shadow-xs space-y-6">
+
+            {/* Room Type Selector Tabs */}
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                Select Room Privacy Mode
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoomType('public');
+                    if (error) setError('');
+                  }}
+                  className={`py-2 px-3 text-xs font-bold rounded-md text-center transition-all cursor-pointer ${
+                    roomType === 'public'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-white'
+                  }`}
+                >
+                  Public Room (Open)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoomType('private');
+                    if (!currentUser) {
+                      setError('Sign in required for Private Rooms.');
+                    } else if (error) {
+                      setError('');
+                    }
+                  }}
+                  className={`py-2 px-3 text-xs font-bold rounded-md text-center transition-all cursor-pointer ${
+                    roomType === 'private'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-700 hover:bg-white'
+                  }`}
+                >
+                  Private Room (Signed In)
+                </button>
+              </div>
+              <div className="text-[11px] text-slate-500 mt-2 italic">
+                {roomType === 'public'
+                  ? 'Anyone can view and write code in Public Rooms.'
+                  : 'Requires user login. Only authenticated members can access.'}
               </div>
             </div>
 
@@ -238,17 +388,15 @@ const JoinRoom = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <h2 className="text-base font-bold text-slate-900">
-                  {currentUser ? 'Enter Room' : 'Workspace Access'}
+                  {roomType === 'private' ? 'Join Private Room' : 'Join Public Room'}
                 </h2>
-                {currentUser && (
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
-                    Authenticated
-                  </span>
-                )}
+                <span className="text-[10px] bg-slate-100 text-slate-800 border border-slate-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                  {roomType.toUpperCase()}
+                </span>
               </div>
 
               {error && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-700 font-medium">
+                <div className="p-3 bg-slate-100 border border-slate-300 rounded-md text-xs text-slate-800 font-medium">
                   {error}
                 </div>
               )}
@@ -266,7 +414,7 @@ const JoinRoom = ({
                     setUserName(e.target.value);
                     if (error) setError('');
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:outline-hidden transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:ring-2 focus:ring-slate-300 focus:outline-hidden transition-colors"
                   autoComplete="name"
                 />
               </div>
@@ -274,7 +422,7 @@ const JoinRoom = ({
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label htmlFor="roomId" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Room ID
+                    Room Identifier
                   </label>
                   <button
                     type="button"
@@ -287,64 +435,69 @@ const JoinRoom = ({
                 <input
                   id="roomId"
                   type="text"
-                  placeholder="e.g. main-workspace-1"
+                  placeholder={roomType === 'private' ? 'e.g. private-team-42' : 'e.g. public-js-playground'}
                   value={room}
                   onChange={(e) => {
                     setRoom(e.target.value);
                     if (error) setError('');
                   }}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:outline-hidden transition-colors"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:ring-2 focus:ring-slate-300 focus:outline-hidden transition-colors"
                   autoComplete="off"
                 />
               </div>
 
-              {currentUser ? (
-                <button
-                  type="submit"
-                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-md shadow-xs transition-colors cursor-pointer mt-2"
-                >
-                  Enter Workspace Room
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onOpenAuth}
-                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-md shadow-xs transition-colors cursor-pointer mt-2"
-                >
-                  Sign In to Enter Room
-                </button>
-              )}
+              <button
+                type="submit"
+                className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm rounded-md shadow-xs transition-colors cursor-pointer mt-2"
+              >
+                {roomType === 'private' && !currentUser
+                  ? 'Sign In to Access Private Room'
+                  : 'Enter Workspace Room'}
+              </button>
             </form>
+
+            {/* Recent Workspaces */}
+            {recentRooms.length > 0 && (
+              <div className="pt-4 border-t border-slate-100">
+                <span className="block text-xs text-slate-500 font-bold mb-2 uppercase tracking-wider">
+                  Recent Workspaces
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {recentRooms.map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => {
+                        setRoom(r);
+                        joinRoom();
+                      }}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-mono font-medium rounded-md border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Recent Rooms */}
-          {recentRooms.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-slate-100">
-              <span className="block text-xs text-slate-500 font-semibold mb-2 uppercase tracking-wider">
-                Recent Rooms
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {recentRooms.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setRoom(r);
-                      if (currentUser) {
-                        joinRoom();
-                      } else {
-                        onOpenAuth();
-                      }
-                    }}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-mono rounded border border-slate-200 transition-colors cursor-pointer"
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
+
+        {/* Footer Metrics */}
+        <footer className="pt-6 border-t border-slate-200 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-4">
+          <div>
+            CollabCode &copy; 2026 Enterprise Collaborative Workspace Platform.
+          </div>
+          <div className="flex items-center gap-4 font-semibold text-slate-600">
+            <span>Public & Private Rooms</span>
+            <span>•</span>
+            <span>Judge0 Execution</span>
+            <span>•</span>
+            <span>WebRTC Video</span>
+            <span>•</span>
+            <span>Free AI Engine</span>
+          </div>
+        </footer>
 
       </div>
     </div>

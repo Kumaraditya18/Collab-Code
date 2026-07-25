@@ -114,9 +114,9 @@ function App() {
     }
   };
 
-  const joinRoomWithUser = (userObj, roomTarget) => {
+  const joinRoomWithUser = (userObj, roomTarget, targetRoomType = 'public') => {
     const r = (roomTarget || room).trim();
-    const u = (userObj?.username || userName).trim();
+    const u = (userObj?.username || userName || 'Guest').trim();
 
     if (r && u) {
       try {
@@ -130,17 +130,17 @@ function App() {
         socket.connect();
       }
 
-      socket.emit('join-room', { roomId: r, userName: u });
+      socket.emit('join-room', { roomId: r, userName: u, roomType: targetRoomType });
       setJoined(true);
     }
   };
 
-  const joinRoom = () => {
-    if (!currentUser) {
+  const joinRoom = (selectedType = 'public') => {
+    if (selectedType === 'private' && !currentUser) {
       setIsAuthOpen(true);
       return;
     }
-    joinRoomWithUser(currentUser, room);
+    joinRoomWithUser(currentUser, room, selectedType);
   };
 
   const handleAuthSuccess = (user) => {
@@ -153,7 +153,6 @@ function App() {
     }
     setIsAuthOpen(false);
 
-    // Auto enter room if room ID is specified
     if (room.trim()) {
       joinRoomWithUser(user, room);
     }
@@ -173,7 +172,7 @@ function App() {
     localStorage.removeItem('collabcode_token');
     localStorage.removeItem('collabcode_user');
     setCurrentUser(null);
-    leaveRoom(); // Evict user from room and exit to landing page upon sign out
+    leaveRoom();
   };
 
   // Socket event handling
@@ -255,7 +254,6 @@ function App() {
   };
 
   const handleCreateFile = (newFileObj) => {
-    if (!currentUser) return;
     setFiles((prev) => [...prev, newFileObj]);
     setActiveFileId(newFileObj.id);
     if (joined) {
@@ -264,7 +262,6 @@ function App() {
   };
 
   const handleDeleteFile = (fileIdToDelete) => {
-    if (!currentUser) return;
     if (files.length <= 1) return;
     const remaining = files.filter((f) => f.id !== fileIdToDelete);
     setFiles(remaining);
@@ -277,7 +274,6 @@ function App() {
   };
 
   const handleImportFile = (importedFileObj) => {
-    if (!currentUser) return;
     setFiles((prev) => [...prev, importedFileObj]);
     setActiveFileId(importedFileObj.id);
     if (joined) {
@@ -299,7 +295,6 @@ function App() {
   };
 
   const handleCodeChange = (newContent) => {
-    if (!currentUser) return;
     setFiles((prev) =>
       prev.map((f) => (f.id === activeFileId ? { ...f, content: newContent } : f))
     );
@@ -322,9 +317,6 @@ function App() {
   };
 
   const runCode = async (codeToRun, stdinInput) => {
-    if (!currentUser) {
-      return 'Authentication Required: You must sign in to execute code.';
-    }
     try {
       const token = localStorage.getItem('collabcode_token');
       const headers = { 'Content-Type': 'application/json' };
