@@ -8,6 +8,7 @@ const JoinRoom = ({
   setUserName,
   joinRoom,
   currentUser,
+  inviteData,
   onOpenAuth,
   onLogout,
   serverUrl,
@@ -110,6 +111,19 @@ const JoinRoom = ({
     joinRoom(roomType, room.trim());
   };
 
+  const handleInviteSubmit = (e) => {
+    e.preventDefault();
+
+    if (!userName.trim()) {
+      setError('Please enter your display name to join the room.');
+      return;
+    }
+
+    setError('');
+    // Join room directly via invitation link
+    joinRoom(inviteData?.roomType || 'public', inviteData?.roomId || room, true);
+  };
+
   const handleJoinDirect = (targetRoomId, targetRoomType) => {
     if (targetRoomType === 'private' && !currentUser) {
       setError('Private rooms require authentication. Please sign in to join.');
@@ -130,7 +144,7 @@ const JoinRoom = ({
           <div className="flex items-center gap-3">
             <span className="text-2xl font-black tracking-tight text-slate-900">CollabCode</span>
             <span className="text-xs px-2.5 py-0.5 bg-slate-200 text-slate-700 font-bold uppercase tracking-wider rounded">
-              Google Workspace Style IDE
+              Encrypted Link Sharing IDE
             </span>
           </div>
 
@@ -171,10 +185,10 @@ const JoinRoom = ({
                 Enterprise Code Workspace
               </div>
               <h1 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                Collaborative IDE <br />for Development Teams.
+                Encrypted Link Sharing <br />& Pair Programming.
               </h1>
               <p className="text-sm text-slate-600 mt-3 leading-relaxed max-w-xl">
-                Just like Google Workspace for code: edit multi-language projects live with team members, execute scripts instantly, host video calls, and access free AI code support.
+                Invite collaborators with zero-friction encrypted share links. Teammates can join any Public or Private workspace simply by entering their display name!
               </p>
             </div>
 
@@ -271,64 +285,121 @@ const JoinRoom = ({
             </div>
           </div>
 
-          {/* Right Column: Google Workspace Action Portal Cards */}
+          {/* Right Column: Encrypted Invite Card or Normal Action Cards */}
           <div className="lg:col-span-5 space-y-4">
 
-            {/* Action Card 1: Create New Room Modal Trigger */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-3 hover:border-slate-400 transition-all">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  New Workspace
-                </span>
-                <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold uppercase border border-slate-200">
-                  Create
-                </span>
-              </div>
-              <div>
-                <h2 className="text-lg font-extrabold text-slate-900">Create New Room</h2>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Launch a new Public or Private workspace room for team coding.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  handleGenerateRoom();
-                  setIsCreateModalOpen(true);
-                }}
-                className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
-              >
-                Create Workspace Room
-              </button>
-            </div>
+            {/* ENCRYPTED INVITATION CARD */}
+            {inviteData ? (
+              <div className="bg-white border-2 border-slate-900 rounded-xl p-6 shadow-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] bg-slate-900 text-white font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                    Encrypted Invitation
+                  </span>
+                  <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-bold uppercase border border-slate-200">
+                    {inviteData.roomType.toUpperCase()}
+                  </span>
+                </div>
 
-            {/* Action Card 2: Browse Workspaces Modal Trigger */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-3 hover:border-slate-400 transition-all">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Active Rooms ({publicRooms.length})
-                </span>
-                <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold uppercase border border-slate-200">
-                  Explore
-                </span>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">You're Invited to Join Workspace</h2>
+                  <p className="text-xs text-slate-600 mt-1">
+                    <strong className="text-slate-900">{inviteData.inviterName}</strong> has invited you to join room{' '}
+                    <span className="font-mono font-bold text-slate-900">{inviteData.roomId}</span>.
+                  </p>
+                </div>
+
+                <form onSubmit={handleInviteSubmit} className="space-y-3 pt-2 border-t border-slate-100">
+                  {error && (
+                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-xs text-rose-700 font-medium">
+                      {error}
+                    </div>
+                  )}
+
+                  <div>
+                    <label htmlFor="inviteUserName" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Enter Your Display Name
+                    </label>
+                    <input
+                      id="inviteUserName"
+                      type="text"
+                      placeholder="e.g. Alex, Sarah"
+                      value={userName}
+                      onChange={(e) => {
+                        setUserName(e.target.value);
+                        if (error) setError('');
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 focus:bg-white focus:border-slate-500 focus:outline-hidden"
+                      autoFocus
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    Accept Invitation & Enter Room
+                  </button>
+                </form>
               </div>
-              <div>
-                <h2 className="text-lg font-extrabold text-slate-900">Browse Available Rooms</h2>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  {currentUser ? 'Explore all public rooms & your created workspaces.' : 'View all publicly available collaborative rooms.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  fetchRoomsList();
-                  setIsBrowseModalOpen(true);
-                }}
-                className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
-              >
-                Browse & Join Rooms Modal
-              </button>
-            </div>
+            ) : (
+              <>
+                {/* Action Card 1: Create New Room Modal Trigger */}
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-3 hover:border-slate-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      New Workspace
+                    </span>
+                    <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold uppercase border border-slate-200">
+                      Create
+                    </span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-extrabold text-slate-900">Create New Room</h2>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Launch a new Public or Private workspace room for team coding.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleGenerateRoom();
+                      setIsCreateModalOpen(true);
+                    }}
+                    className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    Create Workspace Room
+                  </button>
+                </div>
+
+                {/* Action Card 2: Browse Workspaces Modal Trigger */}
+                <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs space-y-3 hover:border-slate-400 transition-all">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Active Rooms ({publicRooms.length})
+                    </span>
+                    <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold uppercase border border-slate-200">
+                      Explore
+                    </span>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-extrabold text-slate-900">Browse Available Rooms</h2>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {currentUser ? 'Explore all public rooms & your created workspaces.' : 'View all publicly available collaborative rooms.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      fetchRoomsList();
+                      setIsBrowseModalOpen(true);
+                    }}
+                    className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs rounded-lg border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Browse & Join Rooms Modal
+                  </button>
+                </div>
+              </>
+            )}
 
             {/* Recent Workspaces */}
             {recentRooms.length > 0 && (

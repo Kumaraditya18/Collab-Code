@@ -9,6 +9,7 @@ import ShareModal from './components/ShareModal';
 import VideoCallDrawer from './components/VideoCallDrawer';
 import AiAssistantDrawer from './components/AiAssistantDrawer';
 import { parseResponseJson } from './utils/api';
+import { parseEncryptedInviteToken } from './utils/inviteToken';
 
 // Resolve backend URL
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
@@ -27,6 +28,8 @@ function App() {
   const [room, setRoom] = useState('');
   const [userName, setUserName] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [inviteData, setInviteData] = useState(null);
+
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
@@ -67,7 +70,7 @@ function App() {
     }
   }, [activeFileId, files]);
 
-  // Load saved user & room URL params on mount
+  // Load saved user & encrypted invite URL params on mount
   useEffect(() => {
     const checkAuthAndParams = async () => {
       try {
@@ -92,9 +95,18 @@ function App() {
         }
 
         const params = new URLSearchParams(window.location.search);
-        const roomParam = params.get('room');
-        if (roomParam) {
-          setRoom(roomParam);
+        const inviteParam = params.get('invite');
+        if (inviteParam) {
+          const parsed = parseEncryptedInviteToken(inviteParam);
+          if (parsed) {
+            setInviteData(parsed);
+            setRoom(parsed.roomId);
+          }
+        } else {
+          const roomParam = params.get('room');
+          if (roomParam) {
+            setRoom(roomParam);
+          }
         }
       } catch {
         // Fallback
@@ -140,9 +152,9 @@ function App() {
     }
   };
 
-  const joinRoom = (selectedType = 'public', targetRoomId) => {
+  const joinRoom = (selectedType = 'public', targetRoomId, bypassAuth = false) => {
     const r = targetRoomId || room;
-    if (selectedType === 'private' && !currentUser) {
+    if (selectedType === 'private' && !currentUser && !bypassAuth) {
       setIsAuthOpen(true);
       return;
     }
@@ -428,6 +440,7 @@ function App() {
           setUserName={setUserName}
           joinRoom={joinRoom}
           currentUser={currentUser}
+          inviteData={inviteData}
           onOpenAuth={() => setIsAuthOpen(true)}
           onLogout={handleLogout}
           serverUrl={SERVER_URL}
