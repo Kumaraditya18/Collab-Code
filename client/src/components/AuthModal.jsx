@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { parseResponseJson } from '../utils/api';
 
 const AuthModal = ({ isOpen, onClose, onAuthSuccess, serverUrl }) => {
   const [isLogin, setIsLogin] = useState(true);
@@ -29,13 +30,12 @@ const AuthModal = ({ isOpen, onClose, onAuthSuccess, serverUrl }) => {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await parseResponseJson(res);
 
-      if (!res.ok) {
+      if (!res.ok || data.error) {
         throw new Error(data.error || 'Authentication failed. Please try again.');
       }
 
-      // Save token and user details to localStorage
       localStorage.setItem('collabcode_token', data.token);
       localStorage.setItem('collabcode_user', JSON.stringify(data.user));
 

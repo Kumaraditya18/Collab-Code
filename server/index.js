@@ -36,7 +36,24 @@ const io = new Server(server, {
 });
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+
+// Ensure all API responses return application/json
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api') || req.path === '/run' || req.path === '/health') {
+    res.setHeader('Content-Type', 'application/json');
+  }
+  next();
+});
+
+// JSON Body Parser with syntax error handling
+app.use((req, res, next) => {
+  express.json({ limit: '10mb' })(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: 'Invalid JSON request payload provided.' });
+    }
+    next();
+  });
+});
 
 // Serve static compiled client app
 const clientDistPath = path.join(__dirname, '../client/dist');
@@ -74,7 +91,7 @@ app.get('/health', (req, res) => {
 // AUTH ENDPOINTS
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password } = req.body || {};
 
     if (!username || !username.trim() || username.trim().length < 3) {
       return res.status(400).json({ error: 'Username must be at least 3 characters long.' });
@@ -124,7 +141,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { emailOrUsername, password } = req.body;
+    const { emailOrUsername, password } = req.body || {};
 
     if (!emailOrUsername || !password) {
       return res.status(400).json({ error: 'Email/Username and password are required.' });
@@ -161,10 +178,10 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 
 // ENHANCED CODE RUNNER ENDPOINT WITH STDIN SUPPORT
 app.post('/run', async (req, res) => {
-  const { code, language, stdin } = req.body;
+  const { code, language, stdin } = req.body || {};
 
   if (!code || !code.trim()) {
-    return res.status(400).send({ output: 'No code provided for execution.' });
+    return res.status(400).json({ output: 'No code provided for execution.' });
   }
 
   const languageMap = {
@@ -197,27 +214,27 @@ app.post('/run', async (req, res) => {
 
     const data = await response.json();
 
-    if (data.run) {
+    if (data && data.run) {
       let result = '';
       if (data.run.stdout) result += data.run.stdout;
       if (data.run.stderr) result += (result ? '\n-- Standard Error --\n' : '') + data.run.stderr;
       if (!result) result = 'Execution completed with no output.';
-      res.send({ output: result, code: data.run.code });
-    } else if (data.message) {
-      res.send({ output: `Execution Error: ${data.message}` });
+      res.json({ output: result, code: data.run.code });
+    } else if (data && data.message) {
+      res.json({ output: `Execution Error: ${data.message}` });
     } else {
-      res.send({ output: 'Unable to execute code at this time.' });
+      res.json({ output: 'Unable to execute code at this time.' });
     }
   } catch (err) {
     console.error('Code execution error:', err);
-    res.status(500).send({ output: 'Server error while processing code execution request.' });
+    res.status(500).json({ output: 'Server error while processing code execution request.' });
   }
 });
 
 // Fallback route for SPA client routes
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api') || req.path === '/run' || req.path === '/health') {
-    return next();
+    return res.status(404).json({ error: `Endpoint ${req.path} not found.` });
   }
   const indexPath = path.join(clientDistPath, 'index.html');
   if (fs.existsSync(indexPath)) {
@@ -225,6 +242,14 @@ app.get('*', (req, res, next) => {
   } else {
     res.send('CollabCode Advanced Server is running');
   }
+});
+
+// Global Express Error Handler guaranteeing JSON responses
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'An internal server error occurred.',
+  });
 });
 
 // IN-MEMORY MULTI-FILE AND ROOM STORE

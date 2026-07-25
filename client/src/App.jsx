@@ -7,11 +7,13 @@ import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import ShareModal from './components/ShareModal';
 import VideoCallDrawer from './components/VideoCallDrawer';
+import { parseResponseJson } from './utils/api';
 
+// Resolve backend URL
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost:3001'
-    : window.location.origin);
+    : 'https://collab-code-81ih.onrender.com');
 
 const socket = io(SERVER_URL, {
   autoConnect: false,
@@ -71,9 +73,11 @@ function App() {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (res.ok) {
-            const data = await res.json();
-            setCurrentUser(data.user);
-            setUserName(data.user.username);
+            const data = await parseResponseJson(res);
+            if (data.user) {
+              setCurrentUser(data.user);
+              setUserName(data.user.username);
+            }
           } else {
             localStorage.removeItem('collabcode_token');
             localStorage.removeItem('collabcode_user');
@@ -304,8 +308,8 @@ function App() {
         headers,
         body: JSON.stringify({ code: codeToRun, language, stdin: stdinInput }),
       });
-      const data = await res.json();
-      return data.output;
+      const data = await parseResponseJson(res);
+      return data.output || data.error || 'Execution completed with no output.';
     } catch (err) {
       return `Error executing code: ${err.message || 'Server connection failed'}`;
     }
