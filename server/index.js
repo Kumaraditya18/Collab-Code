@@ -2,14 +2,33 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const {
+  findUserByEmailOrUsername,
+  findUserById,
+  createUser,
+} = require('./usersStore');
 
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Updated CORS for local + production (Vercel)
+const PORT = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'collabcode_jwt_secret_key_2026';
+
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGIN
+  ? process.env.ALLOWED_ORIGIN.split(',')
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
+
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:5173', 'https://collab-code-lemon.vercel.app'],
+    origin: (origin, callback) => {
+      if (!origin || ALLOWED_ORIGINS.includes(origin) || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     methods: ['GET', 'POST'],
   },
 });
@@ -17,101 +36,268 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.send('Server is running');
+// Authentication Middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    const user = findUserById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found' });
+    }
+    req.user = { id: user.id, username: user.username, email: user.email };
+    next();
+  });
+};
+
+// Health Check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 👇 Dynamically import node-fetch to avoid ESM error
-const fetch = (...args) =>
-  import('node-fetch').then(({ default: fetch }) => fetch(...args));
+app.get('/', (req, res) => {
+  res.send('CollabCode Server is running');
+});
 
-// 💻 Code execution endpoint (using Piston API)
+// AUTH ENDPOINTS
+
+// Register
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+
+    if (!username || !username.trim() || username.trim().length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters long.' });
+    }
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ error: 'Please provide a valid email address.' });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    }
+
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
+    const existingUser = findUserByEmailOrUsername(cleanEmail) || findUserByEmailOrUsername(cleanUsername);
+    if (existingUser) {
+      return res.status(409).json({ error: 'An account with that email or username already exists.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+
+    const newUser = {
+      id: userId,
+      username: cleanUsername,
+      email: cleanEmail,
+      password: hashedPassword,
+      createdAt: new Date().toISOString(),
+    };
+
+    createUser(newUser);
+
+    const token = jwt.sign({ id: newUser.id, username: newUser.username }, JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.status(201).json({
+      user: { id: newUser.id, username: newUser.username, email: newUser.email },
+      token,
+      message: 'Account created successfully.',
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    res.status(500).json({ error: 'Server error during account registration.' });
+  }
+});
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { emailOrUsername, password } = req.body;
+
+    if (!emailOrUsername || !password) {
+      return res.status(400).json({ error: 'Email/Username and password are required.' });
+    }
+
+    const user = findUserByEmailOrUsername(emailOrUsername);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials provided.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid credentials provided.' });
+    }
+
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.json({
+      user: { id: user.id, username: user.username, email: user.email },
+      token,
+      message: 'Logged in successfully.',
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Server error during login.' });
+  }
+});
+
+// Get Current User Profile
+app.get('/api/auth/me', authenticateToken, (req, res) => {
+  res.json({ user: req.user });
+});
+
+// CODE RUNNER ENDPOINT
 app.post('/run', async (req, res) => {
   const { code, language } = req.body;
 
-  const languageVersions = {
-    javascript: '18.15.0',
-    python: '3.10.0',
-    cpp: '10.2.0',
-    java: '15.0.2',
-    csharp: '6.12.0',
-    go: '1.20.0',
-    rust: '1.68.0',
-  };
-
-  const version = languageVersions[language];
-
-  if (!version) {
-    return res.status(400).send({ output: '❌ Unsupported language or missing version' });
+  if (!code || !code.trim()) {
+    return res.status(400).send({ output: 'No code provided for execution.' });
   }
 
+  const languageMap = {
+    javascript: { name: 'javascript', version: '18.15.0' },
+    typescript: { name: 'typescript', version: '5.0.3' },
+    python: { name: 'python', version: '3.10.0' },
+    cpp: { name: 'cpp', version: '10.2.0' },
+    java: { name: 'java', version: '15.0.2' },
+    csharp: { name: 'csharp', version: '6.12.0' },
+    go: { name: 'go', version: '1.20.0' },
+    rust: { name: 'rust', version: '1.68.0' },
+  };
+
+  const targetLang = languageMap[language] || { name: language, version: '*' };
+
   try {
-    const response = await fetch('https://emkc.org/api/v2/piston/execute', {
+    const fetchModule = await import('node-fetch');
+    const fetchFunc = fetchModule.default || fetchModule;
+
+    const response = await fetchFunc('https://emkc.org/api/v2/piston/execute', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        language,
-        version,
+        language: targetLang.name,
+        version: targetLang.version,
         files: [{ content: code }],
       }),
     });
 
     const data = await response.json();
-    res.send({ output: data.run?.output || '✅ Executed but no output' });
+
+    if (data.run) {
+      let result = '';
+      if (data.run.stdout) result += data.run.stdout;
+      if (data.run.stderr) result += (result ? '\n-- Standard Error --\n' : '') + data.run.stderr;
+      if (!result) result = 'Execution completed with no output.';
+      res.send({ output: result, code: data.run.code });
+    } else if (data.message) {
+      res.send({ output: `Execution Error: ${data.message}` });
+    } else {
+      res.send({ output: 'Unable to execute code at this time.' });
+    }
   } catch (err) {
-    console.error('Execution error:', err);
-    res.send({ output: '❌ Error executing code' });
+    console.error('Code execution error:', err);
+    res.status(500).send({ output: 'Server error while processing code execution request.' });
   }
 });
 
-// 🧠 In-memory storage for code and chat per room
+// In-memory storage per room
 const roomCodeStore = {};
 const roomChatStore = {};
+const roomUsersStore = {};
 
 io.on('connection', (socket) => {
-  console.log('⚡ Client connected:', socket.id);
+  let currentRoom = null;
+  let currentUserName = 'Anonymous';
 
-  // 🧩 Join a room and re-sync code + chat
-  socket.on('join-room', (roomId) => {
+  socket.on('join-room', ({ roomId, userName }) => {
+    if (!roomId) return;
+
+    currentRoom = roomId;
+    currentUserName = userName && userName.trim() ? userName.trim() : 'Guest';
+
     socket.join(roomId);
-    console.log(`🛏️ ${socket.id} joined room: ${roomId}`);
 
-    // Send existing code (if any)
-    if (roomCodeStore[roomId]) {
-      socket.emit('init-code', roomCodeStore[roomId]);
+    if (!roomUsersStore[roomId]) {
+      roomUsersStore[roomId] = [];
     }
 
-    // Send existing chat history (if any)
+    roomUsersStore[roomId] = roomUsersStore[roomId].filter((u) => u.socketId !== socket.id);
+    roomUsersStore[roomId].push({ socketId: socket.id, userName: currentUserName });
+
+    if (roomCodeStore[roomId] !== undefined) {
+      socket.emit('init-code', roomCodeStore[roomId]);
+    }
     if (roomChatStore[roomId]) {
       socket.emit('init-chat', roomChatStore[roomId]);
     }
+
+    io.to(roomId).emit('room-users', roomUsersStore[roomId]);
+
+    const systemMsg = {
+      type: 'system',
+      text: `${currentUserName} joined the room`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    if (!roomChatStore[roomId]) roomChatStore[roomId] = [];
+    roomChatStore[roomId].push(systemMsg);
+    io.to(roomId).emit('chat-message', systemMsg);
   });
 
-  // 🔁 Code change broadcast
   socket.on('code-change', ({ room, code }) => {
+    if (!room) return;
     roomCodeStore[room] = code;
     socket.to(room).emit('code-change', code);
   });
 
-  // 💬 Chat message handler with timestamp + sender
-  socket.on('chat-message', ({ room, message, sender }) => {
+  socket.on('chat-message', ({ room, message, senderName }) => {
+    if (!room || !message) return;
     if (!roomChatStore[room]) roomChatStore[room] = [];
 
     const msgData = {
+      type: 'user',
       text: message,
-      sender: sender || 'Anonymous',
-      timestamp: Date.now(),
+      senderName: senderName || currentUserName || 'Anonymous',
+      senderId: socket.id,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     roomChatStore[room].push(msgData);
-    socket.to(room).emit('chat-message', msgData);
+    io.to(room).emit('chat-message', msgData);
   });
 
   socket.on('disconnect', () => {
-    console.log('❌ Client disconnected:', socket.id);
+    if (currentRoom && roomUsersStore[currentRoom]) {
+      roomUsersStore[currentRoom] = roomUsersStore[currentRoom].filter((u) => u.socketId !== socket.id);
+
+      io.to(currentRoom).emit('room-users', roomUsersStore[currentRoom]);
+
+      const systemMsg = {
+        type: 'system',
+        text: `${currentUserName} left the room`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      if (roomChatStore[currentRoom]) {
+        roomChatStore[currentRoom].push(systemMsg);
+      }
+      io.to(currentRoom).emit('chat-message', systemMsg);
+    }
   });
 });
 
-server.listen(3001, () => {
-  console.log('🚀 Server running on http://localhost:3001');
+server.listen(PORT, () => {
+  console.log(`CollabCode Server running on port ${PORT}`);
 });

@@ -1,1 +1,66 @@
 @import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+html, body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom light scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* CodeMirror light theme overrides */
+.cm-theme-light .cm-editor {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  font-size: 14px !important;
+  border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.cm-theme-light .cm-gutters {
+  background-color: #f8fafc !important;
+  color: #94a3b8 !important;
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+.cm-theme-light .cm-activeLineGutter {
+  background-color: #e2e8f0 !important;
+  color: #334155 !important;
+}
+
+.cm-theme-light .cm-activeLine {
+  background-color: #f1f5f9 !important;
+}
+
+.cm-theme-light .cm-cursor {
+  border-left-color: #0f172a !important;
+}
+
+.cm-theme-light .cm-selectionBackground,
+.cm-theme-light.cm-focused .cm-selectionBackground {
+  background-color: #e2e8f0 !important;
+}
