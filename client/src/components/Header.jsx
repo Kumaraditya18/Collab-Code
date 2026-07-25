@@ -1,6 +1,17 @@
 import { useState } from 'react';
 
-const Header = ({ room, isConnected, userCount, onLeave, currentUser, onOpenAuth, onLogout }) => {
+const Header = ({
+  room,
+  isConnected,
+  userCount,
+  onLeave,
+  currentUser,
+  onOpenAuth,
+  onLogout,
+  onOpenShare,
+  onToggleVideo,
+  isVideoOpen,
+}) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -38,9 +49,31 @@ const Header = ({ room, isConnected, userCount, onLeave, currentUser, onOpenAuth
           </div>
         </div>
 
-        {/* Connection, Profile & Actions */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-xs">
+        {/* Collaboration Tools, Connection & Actions */}
+        <div className="flex items-center gap-3">
+          {/* Share & Video Tools */}
+          <button
+            onClick={onOpenShare}
+            className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
+          >
+            Share Room
+          </button>
+
+          <button
+            onClick={onToggleVideo}
+            className={`text-xs px-3 py-1.5 font-medium rounded border transition-colors cursor-pointer ${
+              isVideoOpen
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+            }`}
+          >
+            {isVideoOpen ? 'Video Call (Active)' : 'Start Video Call'}
+          </button>
+
+          <div className="h-4 w-px bg-slate-200 hidden md:block" />
+
+          {/* Connection Status */}
+          <div className="hidden md:flex items-center gap-2 text-xs">
             <span
               className={`w-2 h-2 rounded-full ${
                 isConnected ? 'bg-emerald-600' : 'bg-rose-500'
@@ -55,7 +88,7 @@ const Header = ({ room, isConnected, userCount, onLeave, currentUser, onOpenAuth
 
           <div className="h-4 w-px bg-slate-200" />
 
-          {/* User Account / Profile */}
+          {/* Profile Controls */}
           {currentUser ? (
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-semibold text-[11px] flex items-center justify-center border border-slate-300">

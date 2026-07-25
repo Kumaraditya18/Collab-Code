@@ -34,7 +34,7 @@ const io = new Server(server, {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
@@ -64,12 +64,10 @@ app.get('/health', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('CollabCode Server is running');
+  res.send('CollabCode Advanced Server is running');
 });
 
 // AUTH ENDPOINTS
-
-// Register
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -120,7 +118,6 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Login
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { emailOrUsername, password } = req.body;
@@ -154,14 +151,13 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Get Current User Profile
 app.get('/api/auth/me', authenticateToken, (req, res) => {
   res.json({ user: req.user });
 });
 
-// CODE RUNNER ENDPOINT
+// ENHANCED CODE RUNNER ENDPOINT WITH STDIN SUPPORT
 app.post('/run', async (req, res) => {
-  const { code, language } = req.body;
+  const { code, language, stdin } = req.body;
 
   if (!code || !code.trim()) {
     return res.status(400).send({ output: 'No code provided for execution.' });
@@ -191,6 +187,7 @@ app.post('/run', async (req, res) => {
         language: targetLang.name,
         version: targetLang.version,
         files: [{ content: code }],
+        stdin: stdin || '',
       }),
     });
 
@@ -213,10 +210,21 @@ app.post('/run', async (req, res) => {
   }
 });
 
-// In-memory storage per room
+// IN-MEMORY MULTI-FILE AND ROOM STORE
 const roomCodeStore = {};
+const roomFilesStore = {}; // roomId -> Array of { id, name, content, language }
+const roomActiveFileStore = {}; // roomId -> fileId
 const roomChatStore = {};
 const roomUsersStore = {};
+
+const DEFAULT_FILES = [
+  {
+    id: 'file_main',
+    name: 'main.js',
+    content: '// Welcome to CollabCode Workspace\nconsole.log("Hello, Collaborative Coding World!");\n\nfunction calculateSum(a, b) {\n  return a + b;\n}\n\nconsole.log("Sum calculation:", calculateSum(12, 34));\n',
+    language: 'javascript',
+  },
+];
 
 io.on('connection', (socket) => {
   let currentRoom = null;
@@ -237,6 +245,18 @@ io.on('connection', (socket) => {
     roomUsersStore[roomId] = roomUsersStore[roomId].filter((u) => u.socketId !== socket.id);
     roomUsersStore[roomId].push({ socketId: socket.id, userName: currentUserName });
 
+    // Initialize room files if empty
+    if (!roomFilesStore[roomId] || roomFilesStore[roomId].length === 0) {
+      roomFilesStore[roomId] = JSON.parse(JSON.stringify(DEFAULT_FILES));
+      roomActiveFileStore[roomId] = DEFAULT_FILES[0].id;
+    }
+
+    // Send initial room files and state to joining client
+    socket.emit('init-files', {
+      files: roomFilesStore[roomId],
+      activeFileId: roomActiveFileStore[roomId],
+    });
+
     if (roomCodeStore[roomId] !== undefined) {
       socket.emit('init-code', roomCodeStore[roomId]);
     }
@@ -256,10 +276,85 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('chat-message', systemMsg);
   });
 
-  socket.on('code-change', ({ room, code }) => {
-    if (!room) return;
-    roomCodeStore[room] = code;
-    socket.to(room).emit('code-change', code);
+  // Multi-file sync events
+  socket.on('file-create', ({ room, file }) => {
+    if (!room || !file) return;
+    if (!roomFilesStore[room]) roomFilesStore[room] = [];
+
+    roomFilesStore[room].push(file);
+    roomActiveFileStore[room] = file.id;
+
+    io.to(room).emit('files-updated', {
+      files: roomFilesStore[room],
+      activeFileId: file.id,
+    });
+  });
+
+  socket.on('file-select', ({ room, fileId }) => {
+    if (!room || !fileId) return;
+    roomActiveFileStore[room] = fileId;
+    socket.to(room).emit('active-file-changed', fileId);
+  });
+
+  socket.on('file-content-change', ({ room, fileId, content }) => {
+    if (!room || !fileId) return;
+
+    if (roomFilesStore[room]) {
+      const targetFile = roomFilesStore[room].find((f) => f.id === fileId);
+      if (targetFile) {
+        targetFile.content = content;
+      }
+    }
+
+    socket.to(room).emit('file-content-change', { fileId, content });
+  });
+
+  socket.on('file-delete', ({ room, fileId }) => {
+    if (!room || !fileId) return;
+
+    if (roomFilesStore[room] && roomFilesStore[room].length > 1) {
+      roomFilesStore[room] = roomFilesStore[room].filter((f) => f.id !== fileId);
+      if (roomActiveFileStore[room] === fileId) {
+        roomActiveFileStore[room] = roomFilesStore[room][0].id;
+      }
+
+      io.to(room).emit('files-updated', {
+        files: roomFilesStore[room],
+        activeFileId: roomActiveFileStore[room],
+      });
+    }
+  });
+
+  socket.on('file-rename', ({ room, fileId, newName }) => {
+    if (!room || !fileId || !newName) return;
+
+    if (roomFilesStore[room]) {
+      const file = roomFilesStore[room].find((f) => f.id === fileId);
+      if (file) {
+        file.name = newName;
+        io.to(room).emit('files-updated', {
+          files: roomFilesStore[room],
+          activeFileId: roomActiveFileStore[room],
+        });
+      }
+    }
+  });
+
+  // WebRTC Signal Relay for Video/Audio Calls
+  socket.on('webrtc-signal', ({ room, signal, targetSocketId }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('webrtc-signal', {
+        signal,
+        senderSocketId: socket.id,
+        senderName: currentUserName,
+      });
+    } else {
+      socket.to(room).emit('webrtc-signal', {
+        signal,
+        senderSocketId: socket.id,
+        senderName: currentUserName,
+      });
+    }
   });
 
   socket.on('chat-message', ({ room, message, senderName }) => {
@@ -299,5 +394,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`CollabCode Server running on port ${PORT}`);
+  console.log(`CollabCode Advanced Server running on port ${PORT}`);
 });

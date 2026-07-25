@@ -4,6 +4,7 @@ import { javascript } from '@codemirror/lang-javascript';
 import { python } from '@codemirror/lang-python';
 import { cpp } from '@codemirror/lang-cpp';
 import { java } from '@codemirror/lang-java';
+import FileManager from './FileManager';
 
 const CODE_TEMPLATES = {
   javascript: `// JavaScript Environment\nconsole.log("Hello, CollabCode!");\n\nfunction calculate(a, b) {\n  return a + b;\n}\n\nconsole.log("Result:", calculate(10, 20));\n`,
@@ -27,23 +28,41 @@ const FILE_EXTENSIONS = {
   rust: 'rs'
 };
 
-const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
+const Editor = ({
+  code,
+  handleChange,
+  onRun,
+  language,
+  setLanguage,
+  files,
+  activeFileId,
+  onSelectFile,
+  onCreateFile,
+  onDeleteFile,
+  onImportFile,
+  onExportAll,
+}) => {
   const [output, setOutput] = useState('');
+  const [stdin, setStdin] = useState('');
+  const [activeConsoleTab, setActiveConsoleTab] = useState('stdout'); // stdout | stdin
+  const [fontSize, setFontSize] = useState('14px');
   const [isRunning, setIsRunning] = useState(false);
   const [executionTime, setExecutionTime] = useState(null);
 
   const handleRun = async () => {
     if (!code || !code.trim()) {
       setOutput('No code to run.');
+      setActiveConsoleTab('stdout');
       return;
     }
 
     setIsRunning(true);
-    setOutput('Running code...');
+    setActiveConsoleTab('stdout');
+    setOutput('Executing program...');
     const startTime = performance.now();
 
     try {
-      const result = await onRun(code);
+      const result = await onRun(code, stdin);
       const endTime = performance.now();
       setExecutionTime(Math.round(endTime - startTime));
       setOutput(result || 'Program executed successfully with no output.');
@@ -62,13 +81,38 @@ const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
     }
   };
 
-  const handleDownload = () => {
+  const handleFormatCode = () => {
+    if (!code) return;
+    try {
+      if (language === 'javascript' || language === 'json') {
+        try {
+          const parsed = JSON.parse(code);
+          handleChange(JSON.stringify(parsed, null, 2));
+          return;
+        } catch {
+          // fallback to line formatting
+        }
+      }
+      const formatted = code
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .join('\n');
+      handleChange(formatted);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleDownloadSingle = () => {
     const ext = FILE_EXTENSIONS[language] || 'txt';
+    const activeFileObj = files?.find((f) => f.id === activeFileId);
+    const fileName = activeFileObj ? activeFileObj.name : `main.${ext}`;
+
     const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `main.${ext}`;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -98,6 +142,19 @@ const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
 
   return (
     <div className="flex flex-col h-full bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+      {/* File Explorer Tab Bar */}
+      {files && files.length > 0 && (
+        <FileManager
+          files={files}
+          activeFileId={activeFileId}
+          onSelectFile={onSelectFile}
+          onCreateFile={onCreateFile}
+          onDeleteFile={onDeleteFile}
+          onImportFile={onImportFile}
+          onExportAll={onExportAll}
+        />
+      )}
+
       {/* Editor Control Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
         <div className="flex items-center gap-3">
@@ -119,11 +176,34 @@ const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
             <option value="go">Go</option>
             <option value="rust">Rust</option>
           </select>
+
+          <div className="h-4 w-px bg-slate-200" />
+
+          <label htmlFor="fontSelect" className="text-xs font-semibold text-slate-600 uppercase tracking-wider hidden sm:inline">
+            Size:
+          </label>
+          <select
+            id="fontSelect"
+            className="bg-white border border-slate-300 text-slate-800 text-xs font-medium rounded-md px-2 py-1.5 focus:border-slate-500 focus:outline-hidden cursor-pointer hidden sm:inline"
+            value={fontSize}
+            onChange={(e) => setFontSize(e.target.value)}
+          >
+            <option value="12px">12px</option>
+            <option value="14px">14px</option>
+            <option value="16px">16px</option>
+            <option value="18px">18px</option>
+          </select>
         </div>
 
         <div className="flex items-center gap-2">
           <button
-            onClick={handleDownload}
+            onClick={handleFormatCode}
+            className="text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
+          >
+            Format
+          </button>
+          <button
+            onClick={handleDownloadSingle}
             className="text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
           >
             Download
@@ -143,7 +223,7 @@ const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
       </div>
 
       {/* CodeMirror Light Workspace */}
-      <div className="relative flex-1 min-h-[350px] border-b border-slate-200 cm-theme-light">
+      <div className="relative flex-1 min-h-[350px] border-b border-slate-200 cm-theme-light" style={{ fontSize }}>
         <CodeMirror
           value={code}
           height="100%"
@@ -189,20 +269,39 @@ const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
         </div>
       </div>
 
-      {/* Execution Output Console Pane */}
+      {/* Terminal / Stdin Console Pane */}
       <div className="p-4 bg-slate-50">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-              Execution Output
-            </span>
+            <button
+              onClick={() => setActiveConsoleTab('stdout')}
+              className={`text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                activeConsoleTab === 'stdout'
+                  ? 'bg-slate-200 text-slate-900'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Output Terminal
+            </button>
+            <button
+              onClick={() => setActiveConsoleTab('stdin')}
+              className={`text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                activeConsoleTab === 'stdin'
+                  ? 'bg-slate-200 text-slate-900'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Stdin Input {stdin.trim() ? '(Set)' : ''}
+            </button>
+
             {executionTime !== null && !isRunning && (
               <span className="text-[11px] font-mono text-slate-500 bg-slate-200 px-2 py-0.5 rounded">
                 {executionTime} ms
               </span>
             )}
           </div>
-          {output && (
+
+          {output && activeConsoleTab === 'stdout' && (
             <button
               onClick={() => {
                 setOutput('');
@@ -210,16 +309,27 @@ const Editor = ({ code, handleChange, onRun, language, setLanguage }) => {
               }}
               className="text-xs text-slate-500 hover:text-slate-800 font-medium underline underline-offset-2 cursor-pointer"
             >
-              Clear Console
+              Clear Terminal
             </button>
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-md p-3.5 min-h-[100px] max-h-[220px] overflow-y-auto">
-          <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed">
-            {output || 'Click "Run Code" to execute script and view terminal output.'}
-          </pre>
-        </div>
+        {activeConsoleTab === 'stdout' ? (
+          <div className="bg-white border border-slate-200 rounded-md p-3.5 min-h-[100px] max-h-[220px] overflow-y-auto">
+            <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed">
+              {output || 'Click "Run Code" to execute script and view terminal output.'}
+            </pre>
+          </div>
+        ) : (
+          <div className="bg-white border border-slate-200 rounded-md p-3 min-h-[100px]">
+            <textarea
+              placeholder="Enter standard input (stdin) for programs that require user input..."
+              value={stdin}
+              onChange={(e) => setStdin(e.target.value)}
+              className="w-full h-24 text-xs font-mono text-slate-800 focus:outline-hidden resize-none"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

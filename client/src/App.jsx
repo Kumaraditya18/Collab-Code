@@ -5,6 +5,8 @@ import Editor from './components/Editor';
 import JoinRoom from './components/JoinRoom';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
+import ShareModal from './components/ShareModal';
+import VideoCallDrawer from './components/VideoCallDrawer';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -23,17 +25,43 @@ function App() {
   const [userName, setUserName] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [joined, setJoined] = useState(false);
-  const [code, setCode] = useState('');
+
+  // Multi-file workspace state
+  const [files, setFiles] = useState([
+    {
+      id: 'file_main',
+      name: 'main.js',
+      content: '// Welcome to CollabCode Workspace\nconsole.log("Hello, Collaborative Coding World!");\n\nfunction calculateSum(a, b) {\n  return a + b;\n}\n\nconsole.log("Sum calculation:", calculateSum(12, 34));\n',
+      language: 'javascript',
+    },
+  ]);
+  const [activeFileId, setActiveFileId] = useState('file_main');
+
   const [chatMessages, setChatMessages] = useState([]);
   const [roomUsers, setRoomUsers] = useState([]);
   const [language, setLanguage] = useState('javascript');
   const [isConnected, setIsConnected] = useState(false);
   const [socketId, setSocketId] = useState('');
 
-  const codeRef = useRef('');
+  const filesRef = useRef(files);
+  const activeFileIdRef = useRef(activeFileId);
 
-  // Check saved token and query params on mount
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
+  useEffect(() => {
+    activeFileIdRef.current = activeFileId;
+    const currentFileObj = files.find((f) => f.id === activeFileId);
+    if (currentFileObj) {
+      setLanguage(currentFileObj.language);
+    }
+  }, [activeFileId, files]);
+
+  // Load saved user & room URL params on mount
   useEffect(() => {
     const checkAuthAndParams = async () => {
       try {
@@ -119,8 +147,10 @@ function App() {
     setChatMessages([]);
     setRoomUsers([]);
     setIsConnected(false);
+    setIsVideoOpen(false);
   };
 
+  // Socket event handling
   useEffect(() => {
     const onConnect = () => {
       setIsConnected(true);
@@ -131,9 +161,28 @@ function App() {
       setIsConnected(false);
     };
 
-    const onInitCode = (existingCode) => {
-      codeRef.current = existingCode;
-      setCode(existingCode);
+    const onInitFiles = ({ files: roomFiles, activeFileId: roomActiveId }) => {
+      if (roomFiles && roomFiles.length > 0) {
+        setFiles(roomFiles);
+        setActiveFileId(roomActiveId || roomFiles[0].id);
+      }
+    };
+
+    const onFilesUpdated = ({ files: newFiles, activeFileId: newActiveId }) => {
+      setFiles(newFiles);
+      if (newActiveId) {
+        setActiveFileId(newActiveId);
+      }
+    };
+
+    const onActiveFileChanged = (fileId) => {
+      setActiveFileId(fileId);
+    };
+
+    const onFileContentChange = ({ fileId, content }) => {
+      setFiles((prev) =>
+        prev.map((f) => (f.id === fileId ? { ...f, content } : f))
+      );
     };
 
     const onInitChat = (messages) => {
@@ -144,43 +193,92 @@ function App() {
       setRoomUsers(users || []);
     };
 
-    const onCodeChange = (newCode) => {
-      if (newCode !== codeRef.current) {
-        codeRef.current = newCode;
-        setCode(newCode);
-      }
-    };
-
     const onChatMessage = (message) => {
       setChatMessages((prev) => [...prev, message]);
     };
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
-    socket.on('init-code', onInitCode);
+    socket.on('init-files', onInitFiles);
+    socket.on('files-updated', onFilesUpdated);
+    socket.on('active-file-changed', onActiveFileChanged);
+    socket.on('file-content-change', onFileContentChange);
     socket.on('init-chat', onInitChat);
     socket.on('room-users', onRoomUsers);
-    socket.on('code-change', onCodeChange);
     socket.on('chat-message', onChatMessage);
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
-      socket.off('init-code', onInitCode);
+      socket.off('init-files', onInitFiles);
+      socket.off('files-updated', onFilesUpdated);
+      socket.off('active-file-changed', onActiveFileChanged);
+      socket.off('file-content-change', onFileContentChange);
       socket.off('init-chat', onInitChat);
       socket.off('room-users', onRoomUsers);
-      socket.off('code-change', onCodeChange);
       socket.off('chat-message', onChatMessage);
     };
   }, []);
 
-  const handleCodeChange = (value) => {
-    if (value !== codeRef.current) {
-      codeRef.current = value;
-      setCode(value);
-      if (joined) {
-        socket.emit('code-change', { room, code: value });
-      }
+  // Multi-File Manager Handlers
+  const handleSelectFile = (fileId) => {
+    setActiveFileId(fileId);
+    if (joined) {
+      socket.emit('file-select', { room, fileId });
+    }
+  };
+
+  const handleCreateFile = (newFileObj) => {
+    setFiles((prev) => [...prev, newFileObj]);
+    setActiveFileId(newFileObj.id);
+    if (joined) {
+      socket.emit('file-create', { room, file: newFileObj });
+    }
+  };
+
+  const handleDeleteFile = (fileIdToDelete) => {
+    if (files.length <= 1) return;
+    const remaining = files.filter((f) => f.id !== fileIdToDelete);
+    setFiles(remaining);
+    if (activeFileId === fileIdToDelete) {
+      setActiveFileId(remaining[0].id);
+    }
+    if (joined) {
+      socket.emit('file-delete', { room, fileId: fileIdToDelete });
+    }
+  };
+
+  const handleImportFile = (importedFileObj) => {
+    setFiles((prev) => [...prev, importedFileObj]);
+    setActiveFileId(importedFileObj.id);
+    if (joined) {
+      socket.emit('file-create', { room, file: importedFileObj });
+    }
+  };
+
+  const handleExportAll = () => {
+    const projectData = JSON.stringify(files, null, 2);
+    const blob = new Blob([projectData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `collabcode_workspace_${room || 'export'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCodeChange = (newContent) => {
+    setFiles((prev) =>
+      prev.map((f) => (f.id === activeFileId ? { ...f, content: newContent } : f))
+    );
+    if (joined) {
+      socket.emit('file-content-change', {
+        room,
+        fileId: activeFileId,
+        content: newContent,
+      });
     }
   };
 
@@ -193,7 +291,7 @@ function App() {
     });
   };
 
-  const runCode = async (codeToRun) => {
+  const runCode = async (codeToRun, stdinInput) => {
     try {
       const token = localStorage.getItem('collabcode_token');
       const headers = { 'Content-Type': 'application/json' };
@@ -204,7 +302,7 @@ function App() {
       const res = await fetch(`${SERVER_URL}/run`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ code: codeToRun, language }),
+        body: JSON.stringify({ code: codeToRun, language, stdin: stdinInput }),
       });
       const data = await res.json();
       return data.output;
@@ -213,6 +311,9 @@ function App() {
     }
   };
 
+  const currentFileObj = files.find((f) => f.id === activeFileId) || files[0];
+  const activeCodeContent = currentFileObj ? currentFileObj.content : '';
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       <AuthModal
@@ -220,6 +321,20 @@ function App() {
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={handleAuthSuccess}
         serverUrl={SERVER_URL}
+      />
+
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        room={room}
+        userName={userName}
+      />
+
+      <VideoCallDrawer
+        isOpen={isVideoOpen}
+        onClose={() => setIsVideoOpen(false)}
+        room={room}
+        userName={userName}
       />
 
       {!joined ? (
@@ -243,16 +358,26 @@ function App() {
             currentUser={currentUser}
             onOpenAuth={() => setIsAuthOpen(true)}
             onLogout={handleLogout}
+            onOpenShare={() => setIsShareOpen(true)}
+            onToggleVideo={() => setIsVideoOpen(!isVideoOpen)}
+            isVideoOpen={isVideoOpen}
           />
 
           <main className="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             <div className="lg:col-span-2 h-full">
               <Editor
-                code={code}
+                code={activeCodeContent}
                 handleChange={handleCodeChange}
                 onRun={runCode}
                 language={language}
                 setLanguage={setLanguage}
+                files={files}
+                activeFileId={activeFileId}
+                onSelectFile={handleSelectFile}
+                onCreateFile={handleCreateFile}
+                onDeleteFile={handleDeleteFile}
+                onImportFile={handleImportFile}
+                onExportAll={handleExportAll}
               />
             </div>
 
