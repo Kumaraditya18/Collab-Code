@@ -88,6 +88,25 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// GET AVAILABLE PUBLIC ROOMS
+app.get('/api/rooms', (req, res) => {
+  const activeRooms = Object.keys(roomUsersStore)
+    .filter((roomId) => roomUsersStore[roomId] && roomUsersStore[roomId].length > 0)
+    .map((roomId) => {
+      const users = roomUsersStore[roomId] || [];
+      const files = roomFilesStore[roomId] || [];
+      return {
+        roomId,
+        userCount: users.length,
+        fileCount: files.length,
+        activeLanguage: files[0]?.language || 'javascript',
+        members: users.map((u) => u.userName),
+      };
+    });
+
+  res.json({ rooms: activeRooms });
+});
+
 // AUTH ENDPOINTS
 app.post('/api/auth/register', async (req, res) => {
   try {

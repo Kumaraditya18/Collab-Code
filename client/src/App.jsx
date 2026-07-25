@@ -128,6 +128,11 @@ function App() {
   };
 
   const joinRoom = () => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
+
     if (room.trim() && userName.trim()) {
       try {
         localStorage.setItem('collabcode_user_name', userName.trim());
@@ -233,6 +238,7 @@ function App() {
   };
 
   const handleCreateFile = (newFileObj) => {
+    if (!currentUser) return;
     setFiles((prev) => [...prev, newFileObj]);
     setActiveFileId(newFileObj.id);
     if (joined) {
@@ -241,6 +247,7 @@ function App() {
   };
 
   const handleDeleteFile = (fileIdToDelete) => {
+    if (!currentUser) return;
     if (files.length <= 1) return;
     const remaining = files.filter((f) => f.id !== fileIdToDelete);
     setFiles(remaining);
@@ -253,6 +260,7 @@ function App() {
   };
 
   const handleImportFile = (importedFileObj) => {
+    if (!currentUser) return;
     setFiles((prev) => [...prev, importedFileObj]);
     setActiveFileId(importedFileObj.id);
     if (joined) {
@@ -274,6 +282,7 @@ function App() {
   };
 
   const handleCodeChange = (newContent) => {
+    if (!currentUser) return; // Only signed in users can edit/write code!
     setFiles((prev) =>
       prev.map((f) => (f.id === activeFileId ? { ...f, content: newContent } : f))
     );
@@ -296,6 +305,9 @@ function App() {
   };
 
   const runCode = async (codeToRun, stdinInput) => {
+    if (!currentUser) {
+      return 'Authentication Required: You must sign in to execute code.';
+    }
     try {
       const token = localStorage.getItem('collabcode_token');
       const headers = { 'Content-Type': 'application/json' };
@@ -339,6 +351,7 @@ function App() {
         onClose={() => setIsVideoOpen(false)}
         room={room}
         userName={userName}
+        currentUser={currentUser}
       />
 
       {!joined ? (
@@ -351,6 +364,7 @@ function App() {
           currentUser={currentUser}
           onOpenAuth={() => setIsAuthOpen(true)}
           onLogout={handleLogout}
+          serverUrl={SERVER_URL}
         />
       ) : (
         <div className="flex flex-col min-h-screen">
