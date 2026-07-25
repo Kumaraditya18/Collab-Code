@@ -17,6 +17,13 @@ const JoinRoom = ({
   const [loadingRooms, setLoadingRooms] = useState(false);
   const [error, setError] = useState('');
 
+  // Auto-sync display name when user is signed in
+  useEffect(() => {
+    if (currentUser?.username) {
+      setUserName(currentUser.username);
+    }
+  }, [currentUser, setUserName]);
+
   // Fetch active public rooms on mount
   useEffect(() => {
     const fetchRooms = async () => {
@@ -58,15 +65,18 @@ const JoinRoom = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
     if (!currentUser) {
-      setError('Authentication required: Sign in to view and edit code in rooms.');
+      setError('Please sign in first to access collaborative workspace rooms.');
       onOpenAuth();
       return;
     }
+
     if (!room.trim()) {
       setError('Please enter a room identifier to proceed.');
       return;
     }
+
     setError('');
     joinRoom();
   };
@@ -75,34 +85,33 @@ const JoinRoom = ({
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4 sm:p-6 lg:p-12">
       <div className="w-full max-w-5xl bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
 
-        {/* Left Column: Brand Hero & Active Public Rooms */}
+        {/* Left Column: Platform Features & Active Public Rooms */}
         <div className="lg:col-span-7 p-6 sm:p-10 bg-slate-50/50 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col justify-between">
           <div>
-            {/* Header Badge */}
             <div className="inline-block px-3 py-1 bg-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider rounded-md mb-4">
-              Collaborative IDE Platform
+              Real-Time Collaboration Platform
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
               CollabCode
             </h1>
             <p className="text-sm text-slate-600 mt-2 leading-relaxed max-w-md">
-              A high-performance workspace for real-time pair programming, multi-language execution, WebRTC video conferencing, and AI code assistance.
+              A robust, secure workspace for multi-language code editing, real-time sync, WebRTC video calls, and AI code assistance.
             </p>
 
             {/* Feature Highlights Grid */}
             <div className="grid grid-cols-2 gap-3 mt-6">
               <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Multi-File Workspace</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Edit JS, Python, C++, Java & Rust with live sync</div>
+                <div className="text-xs font-bold text-slate-800">Multi-File IDE</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">JS, Python, C++, Java, Rust with live sync</div>
               </div>
               <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Instant Code Runner</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Executes code with stdin & stdout terminals</div>
+                <div className="text-xs font-bold text-slate-800">Code Execution</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Instant compilation with stdin/stdout terminal</div>
               </div>
               <div className="p-3 bg-white border border-slate-200 rounded-lg">
-                <div className="text-xs font-bold text-slate-800">Video Conference</div>
-                <div className="text-[11px] text-slate-500 mt-0.5">Built-in audio & video drawer for team calls</div>
+                <div className="text-xs font-bold text-slate-800">Video Meetings</div>
+                <div className="text-[11px] text-slate-500 mt-0.5">Seamless video & audio conference drawer</div>
               </div>
               <div className="p-3 bg-white border border-slate-200 rounded-lg">
                 <div className="text-xs font-bold text-slate-800">Free AI Assistant</div>
@@ -143,7 +152,7 @@ const JoinRoom = ({
               <div className="text-xs text-slate-400 py-3 italic">Scanning active rooms...</div>
             ) : availableRooms.length === 0 ? (
               <div className="text-xs text-slate-500 py-3 italic bg-white border border-slate-200 rounded-lg px-3">
-                No active public rooms right now. Create a new room on the right to start coding.
+                No active public rooms right now. Sign in and enter a room ID on the right to start.
               </div>
             ) : (
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
@@ -172,7 +181,7 @@ const JoinRoom = ({
                       }}
                       className="text-xs px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded transition-colors cursor-pointer"
                     >
-                      Join Room
+                      {currentUser ? 'Enter Room' : 'Sign In to Join'}
                     </button>
                   </div>
                 ))}
@@ -181,10 +190,10 @@ const JoinRoom = ({
           </div>
         </div>
 
-        {/* Right Column: User Auth & Join Room Form */}
+        {/* Right Column: User Auth & Enter Room Portal */}
         <div className="lg:col-span-5 p-6 sm:p-10 flex flex-col justify-between bg-white">
           <div>
-            {/* Account Status */}
+            {/* User Account Status Card */}
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center border ${
@@ -199,7 +208,7 @@ const JoinRoom = ({
                     {currentUser ? currentUser.username : 'Signed Out'}
                   </div>
                   <div className="text-[10px] text-slate-500">
-                    {currentUser ? currentUser.email : 'Sign in required to write/view code'}
+                    {currentUser ? currentUser.email : 'Sign in to access room workspace'}
                   </div>
                 </div>
               </div>
@@ -225,30 +234,18 @@ const JoinRoom = ({
               </div>
             </div>
 
-            {/* Auth Gate Banner */}
-            {!currentUser && (
-              <div className="mb-6 p-4 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-800">
-                <div className="font-bold text-slate-900 mb-1">
-                  Authentication Required
-                </div>
-                <p className="text-slate-600 leading-relaxed">
-                  Only signed-in accounts can enter workspace rooms and view or write code.
-                </p>
-                <button
-                  type="button"
-                  onClick={onOpenAuth}
-                  className="mt-3 w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md shadow-xs transition-colors cursor-pointer"
-                >
-                  Sign In Account
-                </button>
-              </div>
-            )}
-
-            {/* Join Room Form */}
+            {/* Room Entry Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100">
-                Enter Room
-              </h2>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h2 className="text-base font-bold text-slate-900">
+                  {currentUser ? 'Enter Room' : 'Workspace Access'}
+                </h2>
+                {currentUser && (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-semibold">
+                    Authenticated
+                  </span>
+                )}
+              </div>
 
               {error && (
                 <div className="p-3 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-700 font-medium">
@@ -263,14 +260,13 @@ const JoinRoom = ({
                 <input
                   id="userName"
                   type="text"
-                  placeholder="Enter your name"
+                  placeholder="Enter display name"
                   value={userName}
                   onChange={(e) => {
                     setUserName(e.target.value);
                     if (error) setError('');
                   }}
-                  disabled={!currentUser}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:outline-hidden transition-colors disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:outline-hidden transition-colors"
                   autoComplete="name"
                 />
               </div>
@@ -280,40 +276,44 @@ const JoinRoom = ({
                   <label htmlFor="roomId" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Room ID
                   </label>
-                  {currentUser && (
-                    <button
-                      type="button"
-                      onClick={handleGenerateRoom}
-                      className="text-xs font-medium text-slate-600 hover:text-slate-900 underline cursor-pointer"
-                    >
-                      Generate ID
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleGenerateRoom}
+                    className="text-xs font-medium text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                  >
+                    Generate ID
+                  </button>
                 </div>
                 <input
                   id="roomId"
                   type="text"
-                  placeholder="e.g. main-room-101"
+                  placeholder="e.g. main-workspace-1"
                   value={room}
                   onChange={(e) => {
                     setRoom(e.target.value);
                     if (error) setError('');
                   }}
-                  disabled={!currentUser}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:outline-hidden transition-colors disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-md text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-slate-500 focus:outline-hidden transition-colors"
                   autoComplete="off"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={!currentUser}
-                className={`w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-md shadow-xs transition-colors cursor-pointer mt-2 ${
-                  !currentUser ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {currentUser ? 'Enter Workspace' : 'Sign In to Access Workspace'}
-              </button>
+              {currentUser ? (
+                <button
+                  type="submit"
+                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-md shadow-xs transition-colors cursor-pointer mt-2"
+                >
+                  Enter Workspace Room
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="w-full py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-md shadow-xs transition-colors cursor-pointer mt-2"
+                >
+                  Sign In to Enter Room
+                </button>
+              )}
             </form>
           </div>
 

@@ -103,22 +103,6 @@ function App() {
     checkAuthAndParams();
   }, []);
 
-  const handleAuthSuccess = (user) => {
-    setCurrentUser(user);
-    setUserName(user.username);
-    try {
-      localStorage.setItem('collabcode_user_name', user.username);
-    } catch {
-      // Ignore
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('collabcode_token');
-    localStorage.removeItem('collabcode_user');
-    setCurrentUser(null);
-  };
-
   const saveToRecentRooms = (roomToSave) => {
     try {
       const saved = localStorage.getItem('collabcode_recent_rooms');
@@ -130,16 +114,14 @@ function App() {
     }
   };
 
-  const joinRoom = () => {
-    if (!currentUser) {
-      setIsAuthOpen(true);
-      return;
-    }
+  const joinRoomWithUser = (userObj, roomTarget) => {
+    const r = (roomTarget || room).trim();
+    const u = (userObj?.username || userName).trim();
 
-    if (room.trim() && userName.trim()) {
+    if (r && u) {
       try {
-        localStorage.setItem('collabcode_user_name', userName.trim());
-        saveToRecentRooms(room.trim());
+        localStorage.setItem('collabcode_user_name', u);
+        saveToRecentRooms(r);
       } catch {
         // Ignore
       }
@@ -148,9 +130,39 @@ function App() {
         socket.connect();
       }
 
-      socket.emit('join-room', { roomId: room.trim(), userName: userName.trim() });
+      socket.emit('join-room', { roomId: r, userName: u });
       setJoined(true);
     }
+  };
+
+  const joinRoom = () => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
+    joinRoomWithUser(currentUser, room);
+  };
+
+  const handleAuthSuccess = (user) => {
+    setCurrentUser(user);
+    setUserName(user.username);
+    try {
+      localStorage.setItem('collabcode_user_name', user.username);
+    } catch {
+      // Ignore
+    }
+    setIsAuthOpen(false);
+
+    // Auto enter room if room ID is specified
+    if (room.trim()) {
+      joinRoomWithUser(user, room);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('collabcode_token');
+    localStorage.removeItem('collabcode_user');
+    setCurrentUser(null);
   };
 
   const leaveRoom = () => {
@@ -409,7 +421,6 @@ function App() {
           />
 
           <main className="flex-1 flex overflow-hidden relative">
-            {/* Editor occupies full remaining width */}
             <div className="flex-1 h-full overflow-hidden p-3 md:p-4">
               <Editor
                 code={activeCodeContent}
@@ -429,7 +440,6 @@ function App() {
               />
             </div>
 
-            {/* Hoverable Collapsible Side Drawer */}
             <Sidebar
               roomUsers={roomUsers}
               messages={chatMessages}
