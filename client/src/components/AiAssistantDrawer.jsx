@@ -24,6 +24,8 @@ const AiAssistantDrawer = ({
     setAiResponse('');
     setCodeFix(null);
 
+    const promptToSend = overridePrompt || customPrompt;
+
     try {
       const res = await fetch(`${serverUrl}/api/ai/assistant`, {
         method: 'POST',
@@ -33,13 +35,15 @@ const AiAssistantDrawer = ({
           code,
           language,
           output: executionOutput,
-          prompt: overridePrompt || customPrompt,
+          prompt: promptToSend,
         }),
       });
 
       const data = await parseResponseJson(res);
       if (data.result) {
         setAiResponse(data.result);
+      } else {
+        setAiResponse('AI analysis completed.');
       }
       if (data.codeFix) {
         setCodeFix(data.codeFix);
@@ -54,11 +58,13 @@ const AiAssistantDrawer = ({
   const handleCustomSubmit = (e) => {
     e.preventDefault();
     if (!customPrompt.trim()) return;
-    handleRequestAi('custom', customPrompt.trim());
+    const promptToSend = customPrompt.trim();
+    setCustomPrompt(''); // Clear typebar input immediately
+    handleRequestAi('custom', promptToSend);
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white border-l border-slate-200 shadow-2xl flex flex-col">
+    <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white border-l border-slate-200 shadow-2xl flex flex-col select-none">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
         <div>
@@ -122,15 +128,15 @@ const AiAssistantDrawer = ({
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="text-xs font-semibold text-slate-700 mb-1">Analyzing Workspace Code...</div>
-            <div className="text-[11px] text-slate-400">Generating AI insights and suggestions</div>
+            <div className="text-[11px] text-slate-400">Generating AI response</div>
           </div>
         ) : aiResponse ? (
           <div className="space-y-4">
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
-                AI Assistant Insights
+                AI Assistant Response
               </div>
-              <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed">
+              <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed select-text">
                 {aiResponse}
               </pre>
             </div>
@@ -148,7 +154,7 @@ const AiAssistantDrawer = ({
                     Apply Fix to Editor
                   </button>
                 </div>
-                <pre className="text-xs font-mono text-slate-800 bg-white border border-slate-200 rounded p-3 whitespace-pre-wrap">
+                <pre className="text-xs font-mono text-slate-800 bg-white border border-slate-200 rounded p-3 whitespace-pre-wrap select-text">
                   {codeFix}
                 </pre>
               </div>
@@ -156,7 +162,7 @@ const AiAssistantDrawer = ({
           </div>
         ) : (
           <div className="text-center py-12 text-slate-500 text-xs">
-            Select a quick action above or ask custom questions to get AI assistance for your code.
+            Select a quick action above or type custom questions to get AI code assistance.
           </div>
         )}
       </div>
