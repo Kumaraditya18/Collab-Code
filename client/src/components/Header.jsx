@@ -11,6 +11,8 @@ const Header = ({
   onOpenShare,
   onToggleVideo,
   isVideoOpen,
+  onToggleAi,
+  isAiOpen,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -49,9 +51,19 @@ const Header = ({
           </div>
         </div>
 
-        {/* Collaboration Tools, Connection & Actions */}
-        <div className="flex items-center gap-3">
-          {/* Share & Video Tools */}
+        {/* Collaboration Tools, AI Assistant & Actions */}
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onToggleAi}
+            className={`text-xs px-3 py-1.5 font-medium rounded border transition-colors cursor-pointer ${
+              isAiOpen
+                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+            }`}
+          >
+            {isAiOpen ? 'AI Assistant (Active)' : 'AI Assistant'}
+          </button>
+
           <button
             onClick={onOpenShare}
             className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition-colors cursor-pointer"

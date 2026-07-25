@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import ShareModal from './components/ShareModal';
 import VideoCallDrawer from './components/VideoCallDrawer';
+import AiAssistantDrawer from './components/AiAssistantDrawer';
 import { parseResponseJson } from './utils/api';
 
 // Resolve backend URL
@@ -29,6 +30,8 @@ function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiDebugOutput, setAiDebugOutput] = useState('');
   const [joined, setJoined] = useState(false);
 
   // Multi-file workspace state
@@ -157,6 +160,7 @@ function App() {
     setRoomUsers([]);
     setIsConnected(false);
     setIsVideoOpen(false);
+    setIsAiOpen(false);
   };
 
   // Socket event handling
@@ -282,7 +286,7 @@ function App() {
   };
 
   const handleCodeChange = (newContent) => {
-    if (!currentUser) return; // Only signed in users can edit/write code!
+    if (!currentUser) return;
     setFiles((prev) =>
       prev.map((f) => (f.id === activeFileId ? { ...f, content: newContent } : f))
     );
@@ -327,6 +331,17 @@ function App() {
     }
   };
 
+  const handleApplyAiFix = (fixedCode) => {
+    if (!fixedCode) return;
+    handleCodeChange(fixedCode);
+    setIsAiOpen(false);
+  };
+
+  const handleAskAiToDebug = (output) => {
+    setAiDebugOutput(output);
+    setIsAiOpen(true);
+  };
+
   const currentFileObj = files.find((f) => f.id === activeFileId) || files[0];
   const activeCodeContent = currentFileObj ? currentFileObj.content : '';
 
@@ -354,6 +369,16 @@ function App() {
         currentUser={currentUser}
       />
 
+      <AiAssistantDrawer
+        isOpen={isAiOpen}
+        onClose={() => setIsAiOpen(false)}
+        code={activeCodeContent}
+        language={language}
+        executionOutput={aiDebugOutput}
+        onApplyFix={handleApplyAiFix}
+        serverUrl={SERVER_URL}
+      />
+
       {!joined ? (
         <JoinRoom
           room={room}
@@ -379,6 +404,8 @@ function App() {
             onOpenShare={() => setIsShareOpen(true)}
             onToggleVideo={() => setIsVideoOpen(!isVideoOpen)}
             isVideoOpen={isVideoOpen}
+            onToggleAi={() => setIsAiOpen(!isAiOpen)}
+            isAiOpen={isAiOpen}
           />
 
           <main className="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -396,6 +423,8 @@ function App() {
                 onDeleteFile={handleDeleteFile}
                 onImportFile={handleImportFile}
                 onExportAll={handleExportAll}
+                onToggleAi={() => setIsAiOpen(!isAiOpen)}
+                onAskAiToDebug={handleAskAiToDebug}
               />
             </div>
 

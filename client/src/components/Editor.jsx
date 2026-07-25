@@ -41,10 +41,12 @@ const Editor = ({
   onDeleteFile,
   onImportFile,
   onExportAll,
+  onToggleAi,
+  onAskAiToDebug,
 }) => {
   const [output, setOutput] = useState('');
   const [stdin, setStdin] = useState('');
-  const [activeConsoleTab, setActiveConsoleTab] = useState('stdout'); // stdout | stdin
+  const [activeConsoleTab, setActiveConsoleTab] = useState('stdout');
   const [fontSize, setFontSize] = useState('14px');
   const [isRunning, setIsRunning] = useState(false);
   const [executionTime, setExecutionTime] = useState(null);
@@ -197,6 +199,12 @@ const Editor = ({
 
         <div className="flex items-center gap-2">
           <button
+            onClick={onToggleAi}
+            className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
+          >
+            AI Support
+          </button>
+          <button
             onClick={handleFormatCode}
             className="text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
           >
@@ -301,17 +309,27 @@ const Editor = ({
             )}
           </div>
 
-          {output && activeConsoleTab === 'stdout' && (
-            <button
-              onClick={() => {
-                setOutput('');
-                setExecutionTime(null);
-              }}
-              className="text-xs text-slate-500 hover:text-slate-800 font-medium underline underline-offset-2 cursor-pointer"
-            >
-              Clear Terminal
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {output && (
+              <button
+                onClick={() => onAskAiToDebug(output)}
+                className="text-xs text-slate-800 bg-slate-200 hover:bg-slate-300 font-semibold px-2.5 py-1 rounded transition-colors cursor-pointer"
+              >
+                Ask AI to Fix
+              </button>
+            )}
+            {output && activeConsoleTab === 'stdout' && (
+              <button
+                onClick={() => {
+                  setOutput('');
+                  setExecutionTime(null);
+                }}
+                className="text-xs text-slate-500 hover:text-slate-800 font-medium underline underline-offset-2 cursor-pointer"
+              >
+                Clear Terminal
+              </button>
+            )}
+          </div>
         </div>
 
         {activeConsoleTab === 'stdout' ? (
