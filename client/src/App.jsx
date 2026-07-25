@@ -346,15 +346,35 @@ function App() {
     }
   };
 
+  // Atomic AI Patch Application & Language Sync
   const handleApplyAiFix = (fixedCode, targetLanguage) => {
     if (!fixedCode) return;
-    handleCodeChange(fixedCode);
 
-    if (targetLanguage) {
-      setLanguage(targetLanguage);
-      setFiles((prev) =>
-        prev.map((f) => (f.id === activeFileId ? { ...f, language: targetLanguage } : f))
-      );
+    const newLang = targetLanguage || language;
+
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === activeFileId
+          ? {
+              ...f,
+              content: fixedCode,
+              language: newLang,
+              name: f.name.includes('.')
+                ? `${f.name.split('.')[0]}.${newLang === 'python' ? 'py' : newLang === 'cpp' ? 'cpp' : newLang === 'java' ? 'java' : 'js'}`
+                : f.name,
+            }
+          : f
+      )
+    );
+
+    setLanguage(newLang);
+
+    if (joined) {
+      socket.emit('file-content-change', {
+        room,
+        fileId: activeFileId,
+        content: fixedCode,
+      });
     }
   };
 
