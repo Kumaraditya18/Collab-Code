@@ -159,12 +159,6 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('collabcode_token');
-    localStorage.removeItem('collabcode_user');
-    setCurrentUser(null);
-  };
-
   const leaveRoom = () => {
     socket.disconnect();
     setJoined(false);
@@ -173,6 +167,13 @@ function App() {
     setIsConnected(false);
     setIsVideoOpen(false);
     setIsAiOpen(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('collabcode_token');
+    localStorage.removeItem('collabcode_user');
+    setCurrentUser(null);
+    leaveRoom(); // Evict user from room and exit to landing page upon sign out
   };
 
   // Socket event handling
