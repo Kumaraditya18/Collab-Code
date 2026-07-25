@@ -27,6 +27,13 @@ const Sidebar = ({ roomUsers, messages, sendMessage, currentUserName, socketId }
     return name.slice(0, 2).toUpperCase();
   };
 
+  // Deduplicate active room users by username
+  const uniqueUsers = Array.from(
+    new Map(
+      (roomUsers || []).map((u) => [(u.userName || 'Guest').toLowerCase(), u])
+    ).values()
+  );
+
   const unreadMessagesCount = messages.filter((m) => m.type !== 'system').length;
 
   return (
@@ -59,7 +66,7 @@ const Sidebar = ({ roomUsers, messages, sendMessage, currentUserName, socketId }
                   : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
-              Users ({roomUsers.length})
+              Users ({uniqueUsers.length})
             </button>
           </>
         ) : (
@@ -93,7 +100,7 @@ const Sidebar = ({ roomUsers, messages, sendMessage, currentUserName, socketId }
             Drawer
           </div>
           <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-semibold text-xs flex items-center justify-center">
-            {roomUsers.length}
+            {uniqueUsers.length}
           </div>
           <div className="text-[9px] text-slate-400 font-medium">Hover</div>
         </div>
@@ -167,15 +174,15 @@ const Sidebar = ({ roomUsers, messages, sendMessage, currentUserName, socketId }
           /* Active Participants List */
           <div className="flex-1 overflow-y-auto p-4">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Active Members ({roomUsers.length})
+              Active Members ({uniqueUsers.length})
             </div>
 
             <div className="space-y-2">
-              {roomUsers.map((user) => {
+              {uniqueUsers.map((user) => {
                 const isMe = user.socketId === socketId || user.userName === currentUserName;
                 return (
                   <div
-                    key={user.socketId}
+                    key={user.socketId || user.userName}
                     className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-md"
                   >
                     <div className="flex items-center gap-3">

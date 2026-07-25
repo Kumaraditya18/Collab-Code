@@ -135,7 +135,19 @@ DEFAULT_PUBLIC_ROOM_DEFS.forEach((r) => {
   }
 });
 
-// GET AVAILABLE ROOMS (Public rooms accessible to all, Private rooms listed if authenticated)
+// Helper: Get deduplicated active user list for room
+const getDeduplicatedRoomUsers = (roomId) => {
+  const users = roomUsersStore[roomId] || [];
+  const uniqueUsersMap = new Map();
+  users.forEach((u) => {
+    if (u && u.userName) {
+      uniqueUsersMap.set(u.userName.toLowerCase(), u);
+    }
+  });
+  return Array.from(uniqueUsersMap.values());
+};
+
+// GET AVAILABLE ROOMS
 app.get('/api/rooms', (req, res) => {
   const publicRooms = [];
   const myRooms = [];
@@ -160,7 +172,7 @@ app.get('/api/rooms', (req, res) => {
 
   allKnownRoomIds.forEach((roomId) => {
     const type = roomTypeStore[roomId] || (roomId.startsWith('public-') ? 'public' : 'public');
-    const users = roomUsersStore[roomId] || [];
+    const users = getDeduplicatedRoomUsers(roomId);
     const files = roomFilesStore[roomId] || [];
     const lang = files[0]?.language || 'javascript';
 
@@ -177,7 +189,7 @@ app.get('/api/rooms', (req, res) => {
       publicRooms.push(roomData);
     }
 
-    if (requestUser && (users.some((u) => u.userName === requestUser.username) || type === 'private')) {
+    if (requestUser && (users.some((u) => u.userName.toLowerCase() === requestUser.username.toLowerCase()) || type === 'private')) {
       myRooms.push(roomData);
     }
   });
@@ -533,7 +545,10 @@ io.on('connection', (socket) => {
       roomUsersStore[roomId] = [];
     }
 
-    roomUsersStore[roomId] = roomUsersStore[roomId].filter((u) => u.socketId !== socket.id);
+    // Filter out previous socket ID OR matching username to prevent duplicate user entries
+    roomUsersStore[roomId] = roomUsersStore[roomId].filter(
+      (u) => u.socketId !== socket.id && u.userName.toLowerCase() !== currentUserName.toLowerCase()
+    );
     roomUsersStore[roomId].push({ socketId: socket.id, userName: currentUserName });
 
     if (!roomFilesStore[roomId] || roomFilesStore[roomId].length === 0) {
@@ -553,7 +568,8 @@ io.on('connection', (socket) => {
       socket.emit('init-chat', roomChatStore[roomId]);
     }
 
-    io.to(roomId).emit('room-users', roomUsersStore[roomId]);
+    const deduplicatedUsers = getDeduplicatedRoomUsers(roomId);
+    io.to(roomId).emit('room-users', deduplicatedUsers);
 
     const systemMsg = {
       type: 'system',
@@ -662,9 +678,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (currentRoom && roomUsersStore[currentRoom]) {
-      roomUsersStore[currentRoom] = roomUsersStore[currentRoom].filter((u) => u.socketId !== socket.id);
+      roomUsersStore[currentRoom] = roomUsersStore[currentRoom].filter(
+        (u) => u.socketId !== socket.id
+      );
 
-      io.to(currentRoom).emit('room-users', roomUsersStore[currentRoom]);
+      const deduplicatedUsers = getDeduplicatedRoomUsers(currentRoom);
+      io.to(currentRoom).emit('room-users', deduplicatedUsers);
 
       const systemMsg = {
         type: 'system',
