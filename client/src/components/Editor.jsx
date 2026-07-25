@@ -181,19 +181,20 @@ const Editor = ({
 
           <div className="h-4 w-px bg-slate-200" />
 
-          <label htmlFor="fontSelect" className="text-xs font-semibold text-slate-600 uppercase tracking-wider hidden sm:inline">
-            Size:
+          <label htmlFor="fontSelect" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+            Font Size:
           </label>
           <select
             id="fontSelect"
-            className="bg-white border border-slate-300 text-slate-800 text-xs font-medium rounded-md px-2 py-1.5 focus:border-slate-500 focus:outline-hidden cursor-pointer hidden sm:inline"
+            className="bg-white border border-slate-300 text-slate-800 text-xs font-medium rounded-md px-2 py-1.5 focus:border-slate-500 focus:outline-hidden cursor-pointer"
             value={fontSize}
             onChange={(e) => setFontSize(e.target.value)}
           >
-            <option value="12px">12px</option>
-            <option value="14px">14px</option>
-            <option value="16px">16px</option>
-            <option value="18px">18px</option>
+            <option value="12px">12px (Small)</option>
+            <option value="14px">14px (Medium)</option>
+            <option value="16px">16px (Large)</option>
+            <option value="18px">18px (XL)</option>
+            <option value="20px">20px (2XL)</option>
           </select>
         </div>
 
@@ -230,8 +231,11 @@ const Editor = ({
         </div>
       </div>
 
-      {/* CodeMirror Light Workspace */}
-      <div className="relative flex-1 min-h-[350px] border-b border-slate-200 cm-theme-light" style={{ fontSize }}>
+      {/* CodeMirror Light Workspace with Dynamic CSS Variable */}
+      <div
+        className="relative flex-1 min-h-[350px] border-b border-slate-200 cm-theme-light"
+        style={{ '--editor-font-size': fontSize }}
+      >
         <CodeMirror
           value={code}
           height="100%"
@@ -273,7 +277,7 @@ const Editor = ({
           Lines: <span className="text-slate-700 font-semibold">{lineCount}</span> | Characters: <span className="text-slate-700 font-semibold">{charCount}</span>
         </div>
         <div className="uppercase tracking-wider">
-          UTF-8 | {language}
+          UTF-8 | {language} | {fontSize}
         </div>
       </div>
 

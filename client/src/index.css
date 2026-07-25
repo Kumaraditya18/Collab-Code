@@ -44,7 +44,13 @@ html, body {
   background-color: #ffffff !important;
   color: #0f172a !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
-  font-size: 14px !important;
+  font-size: var(--editor-font-size, 14px) !important;
+}
+
+.cm-theme-light .cm-content,
+.cm-theme-light .cm-gutters,
+.cm-theme-light .cm-line {
+  font-size: var(--editor-font-size, 14px) !important;
 }
 
 .cm-theme-light .cm-gutters {
