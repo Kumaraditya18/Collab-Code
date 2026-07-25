@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { parseResponseJson } from '../utils/api';
 
 const AiAssistantDrawer = ({
@@ -10,13 +10,23 @@ const AiAssistantDrawer = ({
   onApplyFix,
   serverUrl,
 }) => {
-  const [activeTab, setActiveTab] = useState('explain'); // explain | debug | refactor | test | custom
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [aiResponse, setAiResponse] = useState('');
-  const [codeFix, setCodeFix] = useState(null);
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      text: 'Hello! I am your AI Copilot. Ask me to generate algorithms, debug errors, or convert code into C++, Python, Java, Rust, or JavaScript.',
+      codeFix: null,
+      detectedLang: null,
+    },
+  ]);
+  const [inputPrompt, setInputPrompt] = useState('');
   const [loading, setLoading] = useState(false);
-  const [autoApply, setAutoApply] = useState(true);
   const [appliedStatus, setAppliedStatus] = useState('');
+
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
   if (!isOpen) return null;
 
@@ -40,74 +50,81 @@ const AiAssistantDrawer = ({
     return fallbackLang;
   };
 
-  const handleRequestAi = async (actionType, overridePrompt = '') => {
-    setActiveTab(actionType);
-    setLoading(true);
-    setAiResponse('');
-    setCodeFix(null);
+  const handleSendPrompt = async (userText) => {
+    if (!userText || !userText.trim()) return;
+    const cleanPrompt = userText.trim();
+    setInputPrompt('');
     setAppliedStatus('');
 
-    const promptToSend = overridePrompt || customPrompt;
+    // Add user message to chat feed
+    const userMsg = { role: 'user', text: cleanPrompt };
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
 
     try {
       const res = await fetch(`${serverUrl}/api/ai/assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: actionType,
+          action: 'custom',
           code,
           language,
           output: executionOutput,
-          prompt: promptToSend,
+          prompt: cleanPrompt,
         }),
       });
 
       const data = await parseResponseJson(res);
+      let replyText = data.result || 'AI completed request.';
+      let extractedFix = data.codeFix || null;
 
-      if (data.result) {
-        setAiResponse(data.result);
-      } else {
-        setAiResponse('AI analysis completed.');
+      let detectedLang = language;
+      if (extractedFix) {
+        detectedLang = detectLanguageFromCode(extractedFix, language);
       }
 
-      if (data.codeFix) {
-        setCodeFix(data.codeFix);
-        const detectedLang = detectLanguageFromCode(data.codeFix, language);
-        if (autoApply) {
-          onApplyFix(data.codeFix, detectedLang);
-          setAppliedStatus(`Code automatically applied to editor (${detectedLang.toUpperCase()})!`);
-        }
-      }
+      const aiMsg = {
+        role: 'assistant',
+        text: replyText,
+        codeFix: extractedFix,
+        detectedLang,
+      };
+
+      setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
-      setAiResponse(`AI Assistant Error: ${err.message || 'Unable to process request.'}`);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: `AI Assistant Error: ${err.message || 'Unable to process request.'}`,
+          codeFix: null,
+          detectedLang: null,
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCustomSubmit = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!customPrompt.trim()) return;
-    const promptToSend = customPrompt.trim();
-    setCustomPrompt('');
-    handleRequestAi('custom', promptToSend);
+    handleSendPrompt(inputPrompt);
   };
 
-  const handleManualApply = () => {
-    if (codeFix) {
-      const detectedLang = detectLanguageFromCode(codeFix, language);
-      onApplyFix(codeFix, detectedLang);
-      setAppliedStatus(`Code applied to editor (${detectedLang.toUpperCase()})!`);
-    }
+  const handleApplyCodeToEditor = (codeToApply, targetLang) => {
+    if (!codeToApply) return;
+    const langToUse = targetLang || detectLanguageFromCode(codeToApply, language);
+    onApplyFix(codeToApply, langToUse);
+    setAppliedStatus(`Applied to workspace editor as ${langToUse.toUpperCase()}!`);
   };
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white border-l border-slate-200 shadow-2xl flex flex-col select-none">
-      {/* Header */}
+      {/* Copilot Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">AI Code Assistant</h2>
-          <p className="text-xs text-slate-500">Real-time code generation, refactoring & direct editor updates</p>
+          <h2 className="text-lg font-bold text-slate-900">AI Copilot</h2>
+          <p className="text-xs text-slate-500">Ask AI to write code, convert languages & refactor</p>
         </div>
         <button
           onClick={onClose}
@@ -117,132 +134,115 @@ const AiAssistantDrawer = ({
         </button>
       </div>
 
-      {/* Control Bar: Auto-Apply Toggle & Quick Action Buttons */}
-      <div className="p-4 bg-slate-100 border-b border-slate-200 space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoApply}
-              onChange={(e) => setAutoApply(e.target.checked)}
-              className="rounded border-slate-300 text-slate-900 focus:ring-slate-400"
-            />
-            Auto-Apply AI Code Updates to Editor
-          </label>
-          <span className="text-[10px] text-slate-500 font-medium">
-            {autoApply ? 'Direct Edit Enabled' : 'Manual Approval'}
-          </span>
+      {/* Applied Status Banner */}
+      {appliedStatus && (
+        <div className="px-6 py-2 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-bold flex items-center justify-between">
+          <span>{appliedStatus}</span>
+          <span className="text-[10px] uppercase font-mono">[UPDATED]</span>
         </div>
+      )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <button
-            onClick={() => handleRequestAi('explain')}
-            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-              activeTab === 'explain'
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-            }`}
-          >
-            Explain Code
-          </button>
-          <button
-            onClick={() => handleRequestAi('debug')}
-            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-              activeTab === 'debug'
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-            }`}
-          >
-            Fix & Debug
-          </button>
-          <button
-            onClick={() => handleRequestAi('refactor')}
-            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-              activeTab === 'refactor'
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-            }`}
-          >
-            Refactor
-          </button>
-          <button
-            onClick={() => handleRequestAi('test')}
-            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-              activeTab === 'test'
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-            }`}
-          >
-            Unit Tests
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content Pane */}
+      {/* Conversational Feed */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="text-xs font-semibold text-slate-700 mb-1">Generating Code & Updating Editor...</div>
-            <div className="text-[11px] text-slate-400">Processing AI prompt</div>
-          </div>
-        ) : aiResponse ? (
-          <div className="space-y-4">
-            {appliedStatus && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-lg flex items-center justify-between">
-                <span>{appliedStatus}</span>
-                <span className="text-[10px] uppercase tracking-wider font-mono">[UPDATED]</span>
-              </div>
-            )}
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
-                AI Assistant Insights & Instructions
-              </div>
-              <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed select-text">
-                {aiResponse}
-              </pre>
+        {messages.map((msg, index) => (
+          <div
+            key={index}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+          >
+            <div className="flex items-center gap-1.5 mb-1 px-1">
+              <span className="text-[11px] font-bold text-slate-700">
+                {msg.role === 'user' ? 'You' : 'AI Copilot'}
+              </span>
             </div>
 
-            {codeFix && (
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                    Generated Code Result
-                  </span>
-                  <button
-                    onClick={handleManualApply}
-                    className="text-xs px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded shadow-xs transition-colors cursor-pointer"
-                  >
-                    Apply Code to Active File
-                  </button>
+            <div
+              className={`max-w-[90%] p-3.5 rounded-xl text-xs leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-50 border border-slate-200 text-slate-800'
+              }`}
+            >
+              <pre className="whitespace-pre-wrap font-sans select-text">{msg.text}</pre>
+
+              {msg.codeFix && (
+                <div className="mt-3 pt-3 border-t border-slate-200/80">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Generated Code ({msg.detectedLang?.toUpperCase()})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCodeToEditor(msg.codeFix, msg.detectedLang)}
+                      className="text-xs px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded shadow-2xs cursor-pointer"
+                    >
+                      Apply to Editor
+                    </button>
+                  </div>
+                  <pre className="text-xs font-mono text-slate-900 bg-white border border-slate-200 rounded p-3 whitespace-pre-wrap overflow-x-auto select-text">
+                    {msg.codeFix}
+                  </pre>
                 </div>
-                <pre className="text-xs font-mono text-slate-800 bg-white border border-slate-200 rounded p-3 whitespace-pre-wrap select-text">
-                  {codeFix}
-                </pre>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="text-center py-12 text-slate-500 text-xs">
-            Ask AI to generate code, convert languages (C++, Python, Java), or fix bugs.
+        ))}
+
+        {loading && (
+          <div className="flex items-start">
+            <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs text-slate-500 italic">
+              AI Copilot is generating response...
+            </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Custom AI Prompt Input Bar */}
-      <form onSubmit={handleCustomSubmit} className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2">
+      {/* Suggestion Chips */}
+      <div className="px-4 py-2 bg-slate-100 border-t border-slate-200 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => handleSendPrompt('Convert this code to C++')}
+          className="text-[11px] font-semibold px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 rounded border border-slate-300 transition-colors cursor-pointer"
+        >
+          Convert to C++
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSendPrompt('Convert this code to Python')}
+          className="text-[11px] font-semibold px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 rounded border border-slate-300 transition-colors cursor-pointer"
+        >
+          Convert to Python
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSendPrompt('Debug and fix errors in this code')}
+          className="text-[11px] font-semibold px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 rounded border border-slate-300 transition-colors cursor-pointer"
+        >
+          Fix & Debug
+        </button>
+        <button
+          type="button"
+          onClick={() => handleSendPrompt('Refactor and optimize this code')}
+          className="text-[11px] font-semibold px-2.5 py-1 bg-white hover:bg-slate-200 text-slate-700 rounded border border-slate-300 transition-colors cursor-pointer"
+        >
+          Optimize Code
+        </button>
+      </div>
+
+      {/* Copilot Input Bar */}
+      <form onSubmit={handleSubmit} className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2">
         <input
           type="text"
-          placeholder="e.g. make code in cpp, add quicksort, fix syntax..."
-          value={customPrompt}
-          onChange={(e) => setCustomPrompt(e.target.value)}
-          className="flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-md text-xs text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-hidden"
+          placeholder="Ask AI Copilot to code, convert, or fix..."
+          value={inputPrompt}
+          onChange={(e) => setInputPrompt(e.target.value)}
+          className="flex-1 px-3.5 py-2.5 bg-white border border-slate-300 rounded-md text-xs text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-hidden"
         />
         <button
           type="submit"
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md shadow-xs transition-colors cursor-pointer"
+          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-md shadow-xs transition-colors cursor-pointer"
         >
-          Ask & Apply AI
+          Send
         </button>
       </form>
     </div>
