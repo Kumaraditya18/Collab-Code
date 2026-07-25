@@ -19,7 +19,7 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
 const socket = io(SERVER_URL, {
   autoConnect: false,
   reconnection: true,
-  reconnectionAttempts: 5,
+  reconnectionAttempts: 10,
   reconnectionDelay: 1000,
 });
 
@@ -53,6 +53,7 @@ function App() {
 
   const filesRef = useRef(files);
   const activeFileIdRef = useRef(activeFileId);
+  const pendingJoinRef = useRef(null);
 
   useEffect(() => {
     filesRef.current = files;
@@ -126,21 +127,26 @@ function App() {
         // Ignore
       }
 
-      if (!socket.connected) {
+      const joinPayload = { roomId: r, userName: u, roomType: targetRoomType };
+      pendingJoinRef.current = joinPayload;
+
+      setJoined(true);
+
+      if (socket.connected) {
+        socket.emit('join-room', joinPayload);
+      } else {
         socket.connect();
       }
-
-      socket.emit('join-room', { roomId: r, userName: u, roomType: targetRoomType });
-      setJoined(true);
     }
   };
 
-  const joinRoom = (selectedType = 'public') => {
+  const joinRoom = (selectedType = 'public', targetRoomId) => {
+    const r = targetRoomId || room;
     if (selectedType === 'private' && !currentUser) {
       setIsAuthOpen(true);
       return;
     }
-    joinRoomWithUser(currentUser, room, selectedType);
+    joinRoomWithUser(currentUser, r, selectedType);
   };
 
   const handleAuthSuccess = (user) => {
@@ -159,6 +165,7 @@ function App() {
   };
 
   const leaveRoom = () => {
+    pendingJoinRef.current = null;
     socket.disconnect();
     setJoined(false);
     setChatMessages([]);
@@ -180,6 +187,9 @@ function App() {
     const onConnect = () => {
       setIsConnected(true);
       setSocketId(socket.id);
+      if (pendingJoinRef.current) {
+        socket.emit('join-room', pendingJoinRef.current);
+      }
     };
 
     const onDisconnect = () => {

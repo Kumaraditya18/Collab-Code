@@ -135,11 +135,23 @@ DEFAULT_PUBLIC_ROOM_DEFS.forEach((r) => {
   }
 });
 
-// GET AVAILABLE ROOMS (Public rooms accessible to all, Private rooms listed if active)
+// GET AVAILABLE ROOMS (Public rooms accessible to all, Private rooms listed if authenticated)
 app.get('/api/rooms', (req, res) => {
-  const roomsList = [];
+  const publicRooms = [];
+  const myRooms = [];
 
-  // Include pre-configured and active public rooms
+  let requestUser = null;
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      requestUser = findUserById(decoded.id);
+    } catch {
+      // Ignore invalid token
+    }
+  }
+
   const allKnownRoomIds = Array.from(new Set([
     ...DEFAULT_PUBLIC_ROOM_DEFS.map((d) => d.roomId),
     ...Object.keys(roomUsersStore),
@@ -152,20 +164,25 @@ app.get('/api/rooms', (req, res) => {
     const files = roomFilesStore[roomId] || [];
     const lang = files[0]?.language || 'javascript';
 
-    // Only return public rooms or active rooms
-    if (type === 'public' || users.length > 0) {
-      roomsList.push({
-        roomId,
-        type,
-        userCount: users.length,
-        fileCount: files.length,
-        activeLanguage: lang,
-        members: users.map((u) => u.userName),
-      });
+    const roomData = {
+      roomId,
+      type,
+      userCount: users.length,
+      fileCount: files.length,
+      activeLanguage: lang,
+      members: users.map((u) => u.userName),
+    };
+
+    if (type === 'public') {
+      publicRooms.push(roomData);
+    }
+
+    if (requestUser && (users.some((u) => u.userName === requestUser.username) || type === 'private')) {
+      myRooms.push(roomData);
     }
   });
 
-  res.json({ rooms: roomsList });
+  res.json({ rooms: publicRooms, myRooms });
 });
 
 // CREATE / REGISTER ROOM ENDPOINT
@@ -178,7 +195,6 @@ app.post('/api/rooms/create', (req, res) => {
   const cleanRoomId = roomId.trim();
   const targetType = roomType === 'private' ? 'private' : 'public';
 
-  // If private room, enforce auth header
   if (targetType === 'private') {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
