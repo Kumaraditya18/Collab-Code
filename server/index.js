@@ -195,7 +195,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
   res.json({ user: req.user });
 });
 
-// ENHANCED CODE RUNNER ENDPOINT WITH STDIN SUPPORT
+// ENHANCED CODE RUNNER ENDPOINT (POWERED BY JUDGE0 CE ENGINE)
 app.post('/run', async (req, res) => {
   const { code, language, stdin } = req.body || {};
 
@@ -203,50 +203,52 @@ app.post('/run', async (req, res) => {
     return res.status(400).json({ output: 'No code provided for execution.' });
   }
 
-  const languageMap = {
-    javascript: { name: 'javascript', version: '18.15.0' },
-    typescript: { name: 'typescript', version: '5.0.3' },
-    python: { name: 'python', version: '3.10.0' },
-    cpp: { name: 'cpp', version: '10.2.0' },
-    java: { name: 'java', version: '15.0.2' },
-    csharp: { name: 'csharp', version: '6.12.0' },
-    go: { name: 'go', version: '1.20.0' },
-    rust: { name: 'rust', version: '1.68.0' },
+  const judge0LanguageMap = {
+    javascript: 63,
+    typescript: 74,
+    python: 71,
+    cpp: 54,
+    java: 62,
+    csharp: 51,
+    go: 60,
+    rust: 73,
   };
 
-  const targetLang = languageMap[language] || { name: language, version: '*' };
+  const languageId = judge0LanguageMap[language] || 63;
 
   try {
     const fetchModule = await import('node-fetch');
     const fetchFunc = fetchModule.default || fetchModule;
 
-    const response = await fetchFunc('https://emkc.org/api/v2/piston/execute', {
+    const response = await fetchFunc('https://ce.judge0.com/submissions?wait=true', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        language: targetLang.name,
-        version: targetLang.version,
-        files: [{ content: code }],
+        source_code: code,
+        language_id: languageId,
         stdin: stdin || '',
       }),
     });
 
     const data = await response.json();
 
-    if (data && data.run) {
+    if (data) {
       let result = '';
-      if (data.run.stdout) result += data.run.stdout;
-      if (data.run.stderr) result += (result ? '\n-- Standard Error --\n' : '') + data.run.stderr;
+      if (data.stdout) result += data.stdout;
+      if (data.stderr) result += (result ? '\n-- Standard Error --\n' : '') + data.stderr;
+      if (data.compile_output) result += (result ? '\n-- Compilation Error --\n' : '') + data.compile_output;
+      if (data.message) result += (result ? '\n-- Message --\n' : '') + data.message;
+      if (!result && data.status) {
+        result = `Program finished with status: ${data.status.description || 'Completed'}`;
+      }
       if (!result) result = 'Execution completed with no output.';
-      res.json({ output: result, code: data.run.code });
-    } else if (data && data.message) {
-      res.json({ output: `Execution Error: ${data.message}` });
+      return res.json({ output: result, status: data.status?.description });
     } else {
-      res.json({ output: 'Unable to execute code at this time.' });
+      return res.json({ output: 'Unable to execute code at this time.' });
     }
   } catch (err) {
     console.error('Code execution error:', err);
-    res.status(500).json({ output: 'Server error while processing code execution request.' });
+    return res.status(500).json({ output: 'Server error while processing code execution request.' });
   }
 });
 
