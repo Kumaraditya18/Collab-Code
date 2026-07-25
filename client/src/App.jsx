@@ -346,7 +346,7 @@ function App() {
   const activeCodeContent = currentFileObj ? currentFileObj.content : '';
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="h-screen w-screen bg-slate-50 text-slate-900 flex flex-col font-sans overflow-hidden">
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
@@ -392,7 +392,7 @@ function App() {
           serverUrl={SERVER_URL}
         />
       ) : (
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col h-screen w-screen overflow-hidden">
           <Header
             room={room}
             isConnected={isConnected}
@@ -408,8 +408,9 @@ function App() {
             isAiOpen={isAiOpen}
           />
 
-          <main className="flex-1 p-4 md:p-6 max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            <div className="lg:col-span-2 h-full">
+          <main className="flex-1 flex overflow-hidden relative">
+            {/* Editor occupies full remaining width */}
+            <div className="flex-1 h-full overflow-hidden p-3 md:p-4">
               <Editor
                 code={activeCodeContent}
                 handleChange={handleCodeChange}
@@ -428,15 +429,14 @@ function App() {
               />
             </div>
 
-            <div className="h-[650px] lg:h-[720px] sticky top-6">
-              <Sidebar
-                roomUsers={roomUsers}
-                messages={chatMessages}
-                sendMessage={sendMessage}
-                currentUserName={userName}
-                socketId={socketId}
-              />
-            </div>
+            {/* Hoverable Collapsible Side Drawer */}
+            <Sidebar
+              roomUsers={roomUsers}
+              messages={chatMessages}
+              sendMessage={sendMessage}
+              currentUserName={userName}
+              socketId={socketId}
+            />
           </main>
         </div>
       )}
