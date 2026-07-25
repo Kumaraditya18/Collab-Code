@@ -15,6 +15,8 @@ const AiAssistantDrawer = ({
   const [aiResponse, setAiResponse] = useState('');
   const [codeFix, setCodeFix] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [autoApply, setAutoApply] = useState(true); // Auto-apply code changes to editor
+  const [appliedStatus, setAppliedStatus] = useState('');
 
   if (!isOpen) return null;
 
@@ -23,6 +25,7 @@ const AiAssistantDrawer = ({
     setLoading(true);
     setAiResponse('');
     setCodeFix(null);
+    setAppliedStatus('');
 
     const promptToSend = overridePrompt || customPrompt;
 
@@ -40,13 +43,19 @@ const AiAssistantDrawer = ({
       });
 
       const data = await parseResponseJson(res);
+
       if (data.result) {
         setAiResponse(data.result);
       } else {
         setAiResponse('AI analysis completed.');
       }
+
       if (data.codeFix) {
         setCodeFix(data.codeFix);
+        if (autoApply) {
+          onApplyFix(data.codeFix);
+          setAppliedStatus('Code automatically applied to your workspace editor!');
+        }
       }
     } catch (err) {
       setAiResponse(`AI Assistant Error: ${err.message || 'Unable to process request.'}`);
@@ -59,8 +68,15 @@ const AiAssistantDrawer = ({
     e.preventDefault();
     if (!customPrompt.trim()) return;
     const promptToSend = customPrompt.trim();
-    setCustomPrompt(''); // Clear typebar input immediately
+    setCustomPrompt('');
     handleRequestAi('custom', promptToSend);
+  };
+
+  const handleManualApply = () => {
+    if (codeFix) {
+      onApplyFix(codeFix);
+      setAppliedStatus('Code applied to your workspace editor!');
+    }
   };
 
   return (
@@ -69,7 +85,7 @@ const AiAssistantDrawer = ({
       <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
         <div>
           <h2 className="text-lg font-bold text-slate-900">AI Code Assistant</h2>
-          <p className="text-xs text-slate-500">Real-time intelligent code analysis, debugging & refactoring</p>
+          <p className="text-xs text-slate-500">Real-time code generation, refactoring & direct editor updates</p>
         </div>
         <button
           onClick={onClose}
@@ -79,62 +95,86 @@ const AiAssistantDrawer = ({
         </button>
       </div>
 
-      {/* Quick Action Buttons */}
-      <div className="p-4 bg-slate-100 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <button
-          onClick={() => handleRequestAi('explain')}
-          className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-            activeTab === 'explain'
-              ? 'bg-slate-900 text-white border-slate-900'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-          }`}
-        >
-          Explain Code
-        </button>
-        <button
-          onClick={() => handleRequestAi('debug')}
-          className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-            activeTab === 'debug'
-              ? 'bg-slate-900 text-white border-slate-900'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-          }`}
-        >
-          Fix & Debug
-        </button>
-        <button
-          onClick={() => handleRequestAi('refactor')}
-          className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-            activeTab === 'refactor'
-              ? 'bg-slate-900 text-white border-slate-900'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-          }`}
-        >
-          Refactor
-        </button>
-        <button
-          onClick={() => handleRequestAi('test')}
-          className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
-            activeTab === 'test'
-              ? 'bg-slate-900 text-white border-slate-900'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
-          }`}
-        >
-          Unit Tests
-        </button>
+      {/* Control Bar: Auto-Apply Toggle & Quick Action Buttons */}
+      <div className="p-4 bg-slate-100 border-b border-slate-200 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoApply}
+              onChange={(e) => setAutoApply(e.target.checked)}
+              className="rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+            />
+            Auto-Apply AI Code Updates to Editor
+          </label>
+          <span className="text-[10px] text-slate-500 font-medium">
+            {autoApply ? 'Direct Edit Enabled' : 'Manual Approval'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button
+            onClick={() => handleRequestAi('explain')}
+            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
+              activeTab === 'explain'
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            Explain Code
+          </button>
+          <button
+            onClick={() => handleRequestAi('debug')}
+            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
+              activeTab === 'debug'
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            Fix & Debug
+          </button>
+          <button
+            onClick={() => handleRequestAi('refactor')}
+            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
+              activeTab === 'refactor'
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            Refactor
+          </button>
+          <button
+            onClick={() => handleRequestAi('test')}
+            className={`py-2 px-2.5 text-xs font-medium rounded border text-center transition-colors cursor-pointer ${
+              activeTab === 'test'
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-200'
+            }`}
+          >
+            Unit Tests
+          </button>
+        </div>
       </div>
 
       {/* Main Content Pane */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="text-xs font-semibold text-slate-700 mb-1">Analyzing Workspace Code...</div>
-            <div className="text-[11px] text-slate-400">Generating AI response</div>
+            <div className="text-xs font-semibold text-slate-700 mb-1">Generating Code & Updating Editor...</div>
+            <div className="text-[11px] text-slate-400">Processing AI prompt</div>
           </div>
         ) : aiResponse ? (
           <div className="space-y-4">
+            {appliedStatus && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-lg flex items-center justify-between">
+                <span>{appliedStatus}</span>
+                <span className="text-[10px] uppercase tracking-wider font-mono">[UPDATED]</span>
+              </div>
+            )}
+
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">
-                AI Assistant Response
+                AI Assistant Insights & Instructions
               </div>
               <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed select-text">
                 {aiResponse}
@@ -145,13 +185,13 @@ const AiAssistantDrawer = ({
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                    Generated Code Patch
+                    Generated Code Result
                   </span>
                   <button
-                    onClick={() => onApplyFix(codeFix)}
-                    className="text-xs px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded shadow-xs transition-colors cursor-pointer"
+                    onClick={handleManualApply}
+                    className="text-xs px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded shadow-xs transition-colors cursor-pointer"
                   >
-                    Apply Fix to Editor
+                    Apply Code to Active File
                   </button>
                 </div>
                 <pre className="text-xs font-mono text-slate-800 bg-white border border-slate-200 rounded p-3 whitespace-pre-wrap select-text">
@@ -162,7 +202,7 @@ const AiAssistantDrawer = ({
           </div>
         ) : (
           <div className="text-center py-12 text-slate-500 text-xs">
-            Select a quick action above or type custom questions to get AI code assistance.
+            Ask AI to generate code, convert languages, or fix bugs. Changes will automatically apply to your workspace editor when enabled.
           </div>
         )}
       </div>
@@ -171,7 +211,7 @@ const AiAssistantDrawer = ({
       <form onSubmit={handleCustomSubmit} className="p-4 bg-slate-50 border-t border-slate-200 flex gap-2">
         <input
           type="text"
-          placeholder="Ask AI anything about this code..."
+          placeholder="e.g. make code in cpp, add quicksort, fix syntax..."
           value={customPrompt}
           onChange={(e) => setCustomPrompt(e.target.value)}
           className="flex-1 px-3.5 py-2 bg-white border border-slate-300 rounded-md text-xs text-slate-900 placeholder-slate-400 focus:border-slate-500 focus:outline-hidden"
@@ -180,7 +220,7 @@ const AiAssistantDrawer = ({
           type="submit"
           className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md shadow-xs transition-colors cursor-pointer"
         >
-          Ask AI
+          Ask & Apply AI
         </button>
       </form>
     </div>
