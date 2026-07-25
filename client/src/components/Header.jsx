@@ -24,94 +24,97 @@ const Header = ({
   };
 
   return (
-    <header className="w-full bg-white border-b border-slate-200 px-4 md:px-6 py-3 shadow-xs">
-      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-        {/* Brand and Room Information */}
-        <div className="flex items-center gap-4">
+    <header className="w-full bg-white border-b border-slate-200 px-4 md:px-6 py-2.5 shadow-2xs select-none">
+      <div className="w-full flex flex-wrap items-center justify-between gap-4">
+
+        {/* 1. Left Group: Brand & Active Room Identifier */}
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-900 text-lg tracking-tight">CollabCode</span>
-            <span className="text-xs px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-600 rounded font-medium">
-              v1.0
+            <span className="font-extrabold text-slate-900 text-base tracking-tight">
+              CollabCode
             </span>
           </div>
 
-          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
+          <div className="h-4 w-px bg-slate-200" />
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Room:</span>
-            <span className="text-sm font-mono font-semibold text-slate-800 bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              Room:
+            </span>
+            <span className="text-xs font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
               {room}
             </span>
             <button
               onClick={handleCopyLink}
-              className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded border border-slate-200 transition-colors cursor-pointer"
+              className="text-[11px] px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded border border-slate-200 transition-colors cursor-pointer"
             >
               {copied ? 'Copied Link' : 'Copy Link'}
             </button>
           </div>
         </div>
 
-        {/* Collaboration Tools, AI Assistant & Actions */}
-        <div className="flex items-center gap-2.5">
+        {/* 2. Center Group: Primary Action Tools */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-lg border border-slate-200">
           <button
             onClick={onToggleAi}
-            className={`text-xs px-3 py-1.5 font-medium rounded border transition-colors cursor-pointer ${
+            className={`text-xs px-3 py-1 font-semibold rounded transition-colors cursor-pointer ${
               isAiOpen
-                ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-white'
             }`}
           >
             {isAiOpen ? 'AI Assistant (Active)' : 'AI Assistant'}
           </button>
 
           <button
-            onClick={onOpenShare}
-            className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
+            onClick={onToggleVideo}
+            className={`text-xs px-3 py-1 font-semibold rounded transition-colors cursor-pointer ${
+              isVideoOpen
+                ? 'bg-emerald-700 text-white shadow-xs'
+                : 'text-slate-700 hover:bg-white'
+            }`}
           >
-            Share Room
+            {isVideoOpen ? 'Video Call (Active)' : 'Video Call'}
           </button>
 
           <button
-            onClick={onToggleVideo}
-            className={`text-xs px-3 py-1.5 font-medium rounded border transition-colors cursor-pointer ${
-              isVideoOpen
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-            }`}
+            onClick={onOpenShare}
+            className="text-xs px-3 py-1 text-slate-700 font-semibold rounded hover:bg-white transition-colors cursor-pointer"
           >
-            {isVideoOpen ? 'Video Call (Active)' : 'Start Video Call'}
+            Share
           </button>
+        </div>
 
-          <div className="h-4 w-px bg-slate-200 hidden md:block" />
-
+        {/* 3. Right Group: Connection Indicator & Profile */}
+        <div className="flex items-center gap-3">
           {/* Connection Status */}
-          <div className="hidden md:flex items-center gap-2 text-xs">
+          <div className="hidden sm:flex items-center gap-2 text-xs bg-slate-50 px-2.5 py-1 rounded border border-slate-200">
             <span
               className={`w-2 h-2 rounded-full ${
                 isConnected ? 'bg-emerald-600' : 'bg-rose-500'
               }`}
             />
-            <span className="font-medium text-slate-700">
-              {isConnected ? 'Connected' : 'Disconnected'}
+            <span className="font-semibold text-slate-700">
+              {isConnected ? 'Live' : 'Disconnected'}
             </span>
-            <span className="text-slate-400">•</span>
-            <span className="text-slate-600 font-medium">{userCount} {userCount === 1 ? 'User' : 'Users'}</span>
+            <span className="text-slate-300">•</span>
+            <span className="text-slate-600 font-medium">{userCount} {userCount === 1 ? 'user' : 'users'}</span>
           </div>
 
-          <div className="h-4 w-px bg-slate-200" />
+          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-          {/* Profile Controls */}
+          {/* User Profile */}
           {currentUser ? (
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 font-semibold text-[11px] flex items-center justify-center border border-slate-300">
+              <div className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center">
                 {currentUser.username.slice(0, 2).toUpperCase()}
               </div>
-              <span className="text-xs font-semibold text-slate-800 hidden sm:inline">
+              <span className="text-xs font-bold text-slate-900 hidden md:inline">
                 {currentUser.username}
               </span>
               <button
                 onClick={onLogout}
-                className="text-xs px-2 py-1 text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+                className="text-[11px] px-2 py-1 text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
               >
                 Sign Out
               </button>
@@ -119,7 +122,7 @@ const Header = ({
           ) : (
             <button
               onClick={onOpenAuth}
-              className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded border border-slate-300 cursor-pointer"
+              className="text-xs px-3 py-1 bg-slate-900 text-white font-semibold rounded cursor-pointer"
             >
               Sign In
             </button>
@@ -127,11 +130,12 @@ const Header = ({
 
           <button
             onClick={onLeave}
-            className="text-xs px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-medium rounded border border-slate-300 transition-colors cursor-pointer"
+            className="text-xs px-3 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 font-semibold rounded border border-slate-300 transition-colors cursor-pointer"
           >
-            Leave Room
+            Leave
           </button>
         </div>
+
       </div>
     </header>
   );
